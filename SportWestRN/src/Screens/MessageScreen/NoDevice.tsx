@@ -1,8 +1,8 @@
-import {View, Text} from 'react-native';
-import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import BottomSheet, {BottomSheetBackdrop} from '@gorhom/bottom-sheet';
-import BaseMessageScreen from './BaseMessage.Screen';
+import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import styled from 'styled-components/native';
+import BaseMessageScreen from './BaseMessage.Screen';
+import DeviceSearch from './DeviceSearch';
 
 export default function NoDevice() {
   const [isBSOpen, setIsBSOpen] = useState(false);
@@ -14,7 +14,6 @@ export default function NoDevice() {
 
   // callbacks
   const handleSheetChanges = useCallback((index: number) => {
-    console.log('handleSheetChanges', index);
     if (index === -1) {
       setIsBSOpen(false);
     }
@@ -62,9 +61,7 @@ export default function NoDevice() {
         enablePanDownToClose={true}
         enableOverDrag={true}
         onChange={handleSheetChanges}>
-        <View style={{flex: 1, alignItems: 'center'}}>
-          <Text>Awesome 🎉</Text>
-        </View>
+        <DeviceSearch />
       </BottomSheet>
     </Wrapper>
   );

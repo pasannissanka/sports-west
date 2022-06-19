@@ -1,13 +1,8 @@
-import AntProvider from '@ant-design/react-native/lib/provider';
 import React from 'react';
 import NoDevice from './MessageScreen/NoDevice';
 
 const HomeScreen = () => {
-  return (
-    <AntProvider>
-      <NoDevice />
-    </AntProvider>
-  );
+  return <NoDevice />;
 };
 
 export default HomeScreen;
