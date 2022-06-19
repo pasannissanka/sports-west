@@ -8,44 +8,59 @@
  * @format
  */
 
-import Button from '@ant-design/react-native/lib/button';
-import Provider from '@ant-design/react-native/lib/provider';
-import Toast from '@ant-design/react-native/lib/toast';
+import Icon from '@ant-design/react-native/lib/icon';
+import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {NavigationContainer} from '@react-navigation/native';
-import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import React from 'react';
-import {View} from 'react-native';
+import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import HomeScreen from './Screens/Home.Screen';
+import SessionScreen from './Screens/Session.Screen';
+import {SettingsScreen} from './Screens/Settings.Screen';
 
-function HomeScreen() {
-  return (
-    <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-      <Button onPress={() => Toast.info('This is a toast tips')}>Start</Button>
-    </View>
-  );
-}
-
-const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
 
 const App = () => {
   return (
-    <NavigationContainer>
-      <Provider>
-        <Stack.Navigator>
-          <Stack.Screen
+    <GestureHandlerRootView style={{flex: 1}}>
+      <NavigationContainer>
+        <Tab.Navigator
+          initialRouteName="Home"
+          screenOptions={{
+            tabBarActiveTintColor: '#1677FF',
+            tabBarShowLabel: false,
+            headerTitleAlign: 'center',
+            headerTitle: 'Sports Vest',
+          }}>
+          <Tab.Screen
             name="Home"
             component={HomeScreen}
             options={{
-              title: 'Sports Vest',
-              headerTitleAlign: 'center',
-              headerShadowVisible: false,
-              headerTitleStyle: {
-                fontWeight: 'bold',
-              },
+              tabBarIcon: ({color}) => (
+                <Icon name="home" size="lg" color={color} />
+              ),
             }}
           />
-        </Stack.Navigator>
-      </Provider>
-    </NavigationContainer>
+          <Tab.Screen
+            name="Sessions"
+            component={SessionScreen}
+            options={{
+              tabBarIcon: ({color}) => (
+                <Icon name="play-circle" size="lg" color={color} />
+              ),
+            }}
+          />
+          <Tab.Screen
+            name="Settings"
+            component={SettingsScreen}
+            options={{
+              tabBarIcon: ({color}) => (
+                <Icon name="bars" size="lg" color={color} />
+              ),
+            }}
+          />
+        </Tab.Navigator>
+      </NavigationContainer>
+    </GestureHandlerRootView>
   );
 };
 
