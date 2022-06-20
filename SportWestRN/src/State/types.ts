@@ -11,7 +11,8 @@ export type ReducerAction<T> =
   | {type: 'add_device'; device: T}
   | {type: 'clear'}
   | {type: 'fail'; error: string}
-  | {type: 'connect_device'; device: T};
+  | {type: 'connect_device'; device: T}
+  | {type: 'device_disconnect'; device: T};
 
 export interface ContextState<T> {
   state: ReducerState<T> | null;

@@ -1,9 +1,9 @@
 import {BottomSheetFlatList} from '@gorhom/bottom-sheet';
-import React, {useCallback, useMemo} from 'react';
+import React, {useCallback, useEffect, useMemo} from 'react';
 import {StyleSheet} from 'react-native';
 import styled from 'styled-components/native';
-import {BLEmanager} from '../../App';
 import {useBLEContext} from '../../State/BLEContext';
+import BleManager from 'react-native-ble-manager';
 
 export default function DeviceSearch() {
   const {state, dispatch} = useBLEContext();
@@ -15,9 +15,7 @@ export default function DeviceSearch() {
           id: dev.id,
           name: dev.name,
           RSSI: dev.rssi,
-          UUIDS: dev.serviceUUIDs,
-          serviceData: dev.serviceData,
-          manufacture: dev.manufacturerData?.replace(/[=]/g, ''),
+          advertising: dev.advertising,
         };
       }),
     [state],
@@ -25,35 +23,26 @@ export default function DeviceSearch() {
 
   console.log(state);
 
-  const scanDevices = () => {
+  const handleBleScan = () => {
     // display the Activityindicator
     dispatch!({type: 'scan'});
 
     // scan devices
-    BLEmanager.startDeviceScan(null, null, (error, scannedDevice) => {
-      if (error) {
-        console.warn(error);
-        dispatch!({type: 'fail', error: error.message});
-        return;
-      }
-
-      // if a device is detected add the device to the list by dispatching the action into the reducer
-      if (scannedDevice) {
-        console.log(scannedDevice);
-        dispatch!({type: 'add_device', device: scannedDevice});
-      }
-    });
-
-    // stop scanning devices after 5 seconds
-    setTimeout(() => {
-      dispatch!({type: 'scan_end'});
-      BLEmanager.stopDeviceScan();
-    }, 10000);
+    if (!state?.isLoading) {
+      BleManager.scan([], 5, true)
+        .then(result => {
+          console.log('scan', result);
+          dispatch!({type: 'scan'});
+        })
+        .catch(err => {
+          dispatch!({type: 'fail', error: err});
+        });
+    }
   };
 
   // callbacks
   const handleRefresh = () => {
-    scanDevices();
+    handleBleScan();
   };
 
   const renderItem = useCallback(

@@ -1,6 +1,10 @@
 import React from 'react';
-import {Device} from 'react-native-ble-plx';
+import {Peripheral} from 'react-native-ble-manager';
 import {ContextState, ReducerAction, ReducerState} from './types';
+
+export type Device = {
+  connected?: boolean;
+} & Peripheral;
 
 export const BLEInitState: ReducerState<Device> = {
   isLoading: false,
@@ -43,10 +47,7 @@ export const BLEContextReducer = (
         devices: [],
       };
     case 'connect_device':
-      if (
-        action.device &&
-        state.devices?.find(dev => dev.id === action.device.id)
-      ) {
+      if (action.device) {
         return {
           ...state,
           isLoading: false,
@@ -62,6 +63,13 @@ export const BLEContextReducer = (
         ...state,
         isLoading: false,
         error: action.error,
+      };
+    case 'device_disconnect':
+      return {
+        ...state,
+        connectedDevice: undefined,
+        devices: [...(state.devices || []), action.device],
+        isLoading: false,
       };
     default:
       return {
