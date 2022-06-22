@@ -16,5 +16,34 @@ export type ReducerAction<T> =
 
 export interface ContextState<T> {
   state: ReducerState<T> | null;
-  dispatch: React.Dispatch<ReducerAction<T>> | null;
+  dispatch: React.Dispatch<BleStates<T>> | null;
 }
+
+export type BleStates<T> =
+  | {
+      type: 'init';
+    }
+  | {
+      type: 'scan';
+    }
+  | {
+      type: 'scan_success';
+    }
+  | {
+      type: 'error';
+      error: any;
+    }
+  | {
+      type: 'device_found';
+      device: T;
+    }
+  | {
+      type: 'connect';
+    }
+  | {
+      type: 'connected';
+      device: T;
+    }
+  | {
+      type: 'disconnected';
+    };

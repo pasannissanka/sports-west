@@ -18,17 +18,12 @@ import {
   PermissionsAndroid,
   Platform,
 } from 'react-native';
+import BleManager, {Peripheral} from 'react-native-ble-manager';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import HomeScreen from './Screens/Home.Screen';
 import SessionScreen from './Screens/Session.Screen';
 import {SettingsScreen} from './Screens/Settings.Screen';
-import {
-  BLEContext,
-  BLEContextReducer,
-  BLEInitState,
-  Device,
-} from './State/BLEContext';
-import BleManager, {Peripheral} from 'react-native-ble-manager';
+import {BLEContext, BLEContextReducer, BLEInitState} from './State/BLEContext';
 
 const BleManagerModule = NativeModules.BleManager;
 const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
@@ -55,26 +50,36 @@ const App = () => {
       peripheral.name = 'NO NAME';
     }
     BLEDispatch({
-      type: 'add_device',
-      device: {...peripheral, connected: false},
+      type: 'device_found',
+      device: peripheral,
     });
   };
 
   const handleDisconnectedPeripheral = (data: any) => {
     // let peripheral = peripherals.get(data.peripheral);
-    let peripheral = BLEState.devices?.find(
-      dev => dev.id === data.peripheral.id,
-    );
+    let peripheral = BLEState.devices?.find(dev => dev.id === data.peripheral);
 
     if (peripheral) {
-      peripheral.connected = false;
-      BLEDispatch({type: 'device_disconnect', device: peripheral});
+      BLEDispatch({type: 'disconnected'});
     }
     console.log('Disconnected from ' + data.peripheral);
   };
 
   const handleStopScan = () => {
-    BLEDispatch({type: 'scan_end'});
+    BLEDispatch({type: 'scan_success'});
+  };
+
+  const handleConnectPeripheral = (data: {
+    peripheral: string;
+    status: number;
+  }) => {
+    const peripheral = BLEState.devices?.find(
+      dev => dev.id === data.peripheral,
+    );
+    console.log(data, peripheral, BLEState, 'BleManagerConnectPeripheral');
+    // if (peripheral) {
+    //   BLEDispatch({type: 'connected', device: peripheral});
+    // }
   };
 
   const retrieveConnected = () => {
@@ -84,18 +89,29 @@ const App = () => {
       }
       console.log(results);
       for (let i = 0; i < results.length; i++) {
-        let peripheral = results[i] as Device;
-        peripheral.connected = true;
-        BLEDispatch({type: 'connect_device', device: peripheral});
+        let peripheral = results[i] as Peripheral;
+        console.log('Connected Device', peripheral);
+        BLEDispatch({type: 'connected', device: peripheral});
       }
     });
   };
+
+  console.log(BLEState);
 
   useEffect(() => {
     BleManager.start({showAlert: false}).then(() => {
       // Success code
       console.log('Module initialized');
-      retrieveConnected();
+      BleManager.enableBluetooth()
+        .then(() => {
+          // Success code
+          retrieveConnected();
+          console.log('The bluetooth is already enabled or the user confirm');
+        })
+        .catch(error => {
+          // Failure code
+          console.log('The user refuse to enable bluetooth', error);
+        });
     });
     const BleManagerDiscoverPeripheralListener = bleManagerEmitter.addListener(
       'BleManagerDiscoverPeripheral',
@@ -115,6 +131,10 @@ const App = () => {
         'BleManagerDidUpdateValueForCharacteristic',
         handleUpdateValueForCharacteristic,
       );
+    const BleManagerConnectPeripheralListener = bleManagerEmitter.addListener(
+      'BleManagerConnectPeripheral',
+      handleConnectPeripheral,
+    );
 
     if (Platform.OS === 'android' && Platform.Version >= 23) {
       PermissionsAndroid.check(
@@ -142,6 +162,7 @@ const App = () => {
       BleManagerStopScanListener.remove();
       BleManagerDisconnectPeripheralListener.remove();
       BleManagerDidUpdateValueForCharacteristicListener.remove();
+      BleManagerConnectPeripheralListener.remove();
     };
   }, []);
 

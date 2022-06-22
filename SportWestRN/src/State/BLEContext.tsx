@@ -1,32 +1,30 @@
 import React from 'react';
 import {Peripheral} from 'react-native-ble-manager';
-import {ContextState, ReducerAction, ReducerState} from './types';
+import {BleStates, ContextState, ReducerState} from './types';
 
-export type Device = {
-  connected?: boolean;
-} & Peripheral;
-
-export const BLEInitState: ReducerState<Device> = {
+export const BLEInitState: ReducerState<Peripheral> = {
   isLoading: false,
 };
 
 export const BLEContextReducer = (
-  state: ReducerState<Device>,
-  action: ReducerAction<Device>,
-): ReducerState<Device> => {
+  state: ReducerState<Peripheral>,
+  action: BleStates<Peripheral>,
+): ReducerState<Peripheral> => {
   switch (action.type) {
+    case 'init':
+      return {
+        isLoading: false,
+      };
     case 'scan':
       return {
         isLoading: true,
-        connectedDevice: state.connectedDevice,
-        devices: [],
       };
-    case 'scan_end':
+    case 'scan_success':
       return {
         ...state,
         isLoading: false,
       };
-    case 'add_device':
+    case 'device_found':
       if (
         action.device &&
         !state.devices?.find(dev => dev.id === action.device.id)
@@ -41,35 +39,25 @@ export const BLEContextReducer = (
         ...state,
         isLoading: false,
       };
-    case 'clear':
+    case 'connect':
       return {
-        isLoading: false,
-        devices: [],
+        ...state,
+        isLoading: true,
       };
-    case 'connect_device':
-      if (action.device) {
-        return {
-          ...state,
-          isLoading: false,
-          connectedDevice: action.device,
-        };
-      }
+    case 'connected':
       return {
         ...state,
         isLoading: false,
+        connectedDevice: action.device,
       };
-    case 'fail':
+    case 'disconnected':
       return {
-        ...state,
+        isLoading: false,
+      };
+    case 'error':
+      return {
         isLoading: false,
         error: action.error,
-      };
-    case 'device_disconnect':
-      return {
-        ...state,
-        connectedDevice: undefined,
-        devices: [...(state.devices || []), action.device],
-        isLoading: false,
       };
     default:
       return {
@@ -78,7 +66,7 @@ export const BLEContextReducer = (
   }
 };
 
-export const BLEContext = React.createContext<ContextState<Device>>({
+export const BLEContext = React.createContext<ContextState<Peripheral>>({
   dispatch: null,
   state: null,
 });
