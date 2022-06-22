@@ -1,57 +1,27 @@
-/*------------------------------------------------------------------------------
-  04/01/2020
-  Author: Cisco • A C R O B O T I C
-  Platforms: ESP32
-  Language: C++/Arduino
-  File: gps_sd_logger.ino
-  ------------------------------------------------------------------------------
-  Description:
-  Code for YouTube video tutorial demonstrating how to build a GPS datalogger
-  using an ESP32, a NEO-6M GPS module, and an SD card shield. The ESP32 reads
-  data from the sensor, logs it onto the SD card, and then goes into low-power
-  (deep sleep) mode for 10 minutes:
-  https://youtu.be/pHu2yvsFFgw
-  ------------------------------------------------------------------------------
-  Do you like my work? You can support me:
-  https://patreon.com/acrobotic
-  https://paypal.me/acrobotic
-  https://buymeacoff.ee/acrobotic
-  ------------------------------------------------------------------------------
-  Please consider buying products and kits to help fund future Open-Source
-  projects like this! We'll always put our best effort in every project, and
-  release all our design files and code for you to use.
-  https://acrobotic.com/
-  https://amazon.com/shops/acrobotic
-  ------------------------------------------------------------------------------
-  License:
-  Please see attached LICENSE.txt file for details.
-------------------------------------------------------------------------------*/
 // Libraries for NEO-6M GPS module
 #include <TinyGPS.h>
 #include <SoftwareSerial.h>
 
 // Libraries for SD card
-#include "FS.h"
 #include "SD.h"
-#include <SPI.h>
 
-// Libraries to get time from NTP Server
-#include <WiFi.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
+// Libraries for Ble (Bluetooth Low Energy Server)
+#include <BLEDevice.h>
+#include <BLEServer.h>
 
 // Instantiate classes for communicating with the NEO-6M GPS module
 TinyGPS gps;
 SoftwareSerial ss(16, 17);
 
-// Define deep sleep options
-uint64_t uS_TO_S_FACTOR = 1000000; // Conversion factor for micro seconds to seconds
-// Sleep for 10 minutes = 600 seconds
-uint64_t TIME_TO_SLEEP = 5;
+// See the following for generating UUIDs:
+// https://www.uuidgenerator.net/
 
-// Replace with your network credentials
-const char *ssid = "Huawei 11";
-const char *password = "$22200222$";
+#define SERVICE_UUID "08bfe3db-2297-466d-9453-c32f65eb5747"
+#define CHARACTERISTIC_UUID "055aedc8-c77b-4565-bf6c-be35f83997da"
+
+BLEServer *pServer;
+BLEService *pService;
+BLECharacteristic *pCharacteristic;
 
 // Define CS pin for the SD card module
 #define SD_CS 5
@@ -60,15 +30,6 @@ const char *password = "$22200222$";
 RTC_DATA_ATTR int readingID = 0;
 
 String dataMessage;
-
-// Define NTP Client to get time
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP);
-
-// Variables to save NTP date and time
-String formattedTime;
-String dayStamp;
-String timeStamp;
 
 // Variables to save coordinates
 float flat, flon;
@@ -85,49 +46,46 @@ void setup()
   // Start serial communication for debugging purposes
   Serial.begin(115200);
 
-  // Connect to Wi-Fi network with SSID and password
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.println("WiFi connected.");
+  Serial.println("Starting BLE Server!");
+
+  BLEDevice::init("ESP32-BLE-Server");
+  pServer = BLEDevice::createServer();
+  pService = pServer->createService(SERVICE_UUID);
+  pCharacteristic = pService->createCharacteristic(
+      CHARACTERISTIC_UUID,
+      BLECharacteristic::PROPERTY_READ |
+          BLECharacteristic::PROPERTY_WRITE);
+
+  pCharacteristic->setValue("Hello, World!");
+  pService->start();
+  // BLEAdvertising *pAdvertising = pServer->getAdvertising();
+  BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->setScanResponse(true);
+  pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
+  pAdvertising->setMinPreferred(0x12);
+  BLEDevice::startAdvertising();
+  // pAdvertising->start();
+  Serial.println("Characteristic defined! Now you can read it in the Client!");
 
   delay(2000);
 
   // Start communication over software serial with the NEO-6M GPS module
   ss.begin(9600);
 
-  // Initialize a NTPClient to get time
-  timeClient.begin();
-  // Set offset time in seconds to adjust for your timezone, for example:
-  // GMT +1 = 3600
-  // GMT +8 = 28800
-  // GMT -1 = -3600
-  // GMT 0 = 0
-  timeClient.setTimeOffset(19080);
-
   // Initialize SD card
   SD.begin(SD_CS);
   if (!SD.begin(SD_CS))
   {
-    Serial.println("Card Mount Failed");
     return;
   }
   uint8_t cardType = SD.cardType();
   if (cardType == CARD_NONE)
   {
-    Serial.println("No SD card attached");
     return;
   }
-  Serial.println("Initializing SD card...");
   if (!SD.begin(SD_CS))
   {
-    Serial.println("ERROR - SD card initialization failed!");
     return; // init failed
   }
 
@@ -136,39 +94,32 @@ void setup()
   File file = SD.open("/data.txt");
   if (!file)
   {
-    Serial.println("File doens't exist");
-    Serial.println("Creating file...");
     writeFile(SD, "/data.txt", "Reading ID, Date, Time of Day, Latitude, Longitude, \r\n");
   }
-  else
-  {
-    Serial.println("File already exists");
-  }
-  file.close();
 
-  while (!timeClient.update())
-  {
-    timeClient.forceUpdate();
-  }
+  file.close();
 }
 
 void loop()
 {
 
-  getReadings();  // from the NEO-6M GPS module
-  getTimeStamp(); // from the NTP server
-  logSDCard();
+  // getReadings();  // from the NEO-6M GPS module
+  // getTimeStamp(); // from the NTP server
+  // logSDCard();
+
+  std::string value = pCharacteristic->getValue();
+  Serial.print("The new characteristic value is: ");
+  Serial.println(value.c_str());
 
   delay(2000);
 
   // Increment readingID on every new reading
-  readingID++;
+  // readingID++;
 }
 
 // Function to get the GPS data
 void getReadings()
 {
-  Serial.println("Getting readings...");
   bool newData = false;
   unsigned long chars;
   unsigned short sentences, failed;
@@ -201,67 +152,27 @@ void getReadings()
     Serial.print(hdop);
     return;
   }
-
-  // in case the reading fails
-  gps.stats(&chars, &sentences, &failed);
-  Serial.print(" CHARS=");
-  Serial.print(chars);
-  Serial.print(" SENTENCES=");
-  Serial.print(sentences);
-  Serial.print(" CSUM ERR=");
-  Serial.println(failed);
-  if (chars == 0)
-    Serial.println("** No characters received from GPS: check wiring **");
 }
 
-// Function to get date and time from NTPClient
 void getTimeStamp()
 {
-  Serial.print("GetTimeStamp");
-  // while (!timeClient.update())
-  // {
-  //   timeClient.forceUpdate();
-  // }
-  // The formattedDate comes with the following format:
-  // 2018-05-28T16:00:13Z
-  // We need to extract date and time
-  formattedTime = timeClient.getFormattedTime();
-  Serial.println(formattedTime);
-
-  // Extract date
-  dayStamp = timeClient.getDay();
-  Serial.println(dayStamp);
-  // Extract time
+  // TODO
 }
 
 // Write the sensor readings on the SD card
 void logSDCard()
 {
-  dataMessage = String(readingID) + "," + String(dayStamp) + "," + String(formattedTime) + "," +
-                String(flat) + "," + String(flon) + "\r\n";
-  Serial.print("Save data: ");
-  Serial.println(dataMessage);
+  dataMessage = String(readingID) + "," + String(flat) + "," + String(flon) + "\r\n";
   appendFile(SD, "/data.txt", dataMessage.c_str());
 }
 
 // Write to the SD card (DON'T MODIFY THIS FUNCTION)
 void writeFile(fs::FS &fs, const char *path, const char *message)
 {
-  Serial.printf("Writing file: %s\n", path);
-
   File file = fs.open(path, FILE_WRITE);
   if (!file)
   {
-    Serial.println("Failed to open file for writing");
     return;
-  }
-  if (file.print(message))
-  {
-    Serial.println("File written");
-  }
-  else
-  {
-    Serial.println("Write failed");
   }
   file.close();
 }
@@ -269,21 +180,10 @@ void writeFile(fs::FS &fs, const char *path, const char *message)
 // Append data to the SD card (DON'T MODIFY THIS FUNCTION)
 void appendFile(fs::FS &fs, const char *path, const char *message)
 {
-  Serial.printf("Appending to file: %s\n", path);
-
   File file = fs.open(path, FILE_APPEND);
   if (!file)
   {
-    Serial.println("Failed to open file for appending");
     return;
-  }
-  if (file.print(message))
-  {
-    Serial.println("Message appended");
-  }
-  else
-  {
-    Serial.println("Append failed");
   }
   file.close();
 }
