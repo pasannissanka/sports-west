@@ -1,6 +1,7 @@
 // Libraries for NEO-6M GPS module
 #include <TinyGPS.h>
 #include <SoftwareSerial.h>
+#include <ezButton.h>
 
 // Libraries for SD card
 #include "SD.h"
@@ -35,16 +36,35 @@ String dataMessage;
 float flat, flon;
 unsigned long age, sats, hdop;
 
+const gpio_num_t buttonPin_DSL = GPIO_NUM_13; // the number of the pushbutton pin
+const int buttonPin_REC = GPIO_NUM_12;        // the number of the pushbutton pin
+const int ledPin_REC = GPIO_NUM_14;           // the number of the LED pin
+
+int button_DSL_state = 0;
+ezButton buttonREC(buttonPin_REC); // create ezButton object
+ezButton buttonDSL(buttonPin_DSL); // create ezButton object
+
+int is_recording = 0;
+
 void getReadings();
 void getTimeStamp();
 void logSDCard();
 void writeFile(fs::FS &fs, const char *path, const char *message);
 void appendFile(fs::FS &fs, const char *path, const char *message);
+void listenButtonPress();
+void print_wakeup_reason();
 
 void setup()
 {
   // Start serial communication for debugging purposes
   Serial.begin(115200);
+
+  // Setup buttons
+  buttonREC.setDebounceTime(50); // set debounce time to 50 milliseconds
+  buttonDSL.setDebounceTime(50);
+
+  // initialize the LED pin as an output
+  pinMode(ledPin_REC, OUTPUT);
 
   Serial.println("Starting BLE Server!");
 
@@ -98,20 +118,39 @@ void setup()
   }
 
   file.close();
+
+  print_wakeup_reason();
+
+  // setup ext wakeup
+  esp_sleep_enable_ext0_wakeup(buttonPin_DSL, HIGH);
 }
 
 void loop()
 {
+  buttonREC.loop();
+  buttonDSL.loop();
 
-  // getReadings();  // from the NEO-6M GPS module
-  // getTimeStamp(); // from the NTP server
-  // logSDCard();
+  listenButtonPress();
+  Serial.print("Is recoring");
+  Serial.println(is_recording);
+
+  if (is_recording == HIGH)
+  {
+    // getReadings();  // from the NEO-6M GPS module
+    // getTimeStamp(); // from the NTP server
+    // logSDCard();
+    digitalWrite(ledPin_REC, HIGH);
+  }
+  else
+  {
+    digitalWrite(ledPin_REC, LOW);
+  }
 
   std::string value = pCharacteristic->getValue();
   Serial.print("The new characteristic value is: ");
   Serial.println(value.c_str());
 
-  delay(2000);
+  delay(1000);
 
   // Increment readingID on every new reading
   // readingID++;
@@ -186,4 +225,47 @@ void appendFile(fs::FS &fs, const char *path, const char *message)
     return;
   }
   file.close();
+}
+
+void listenButtonPress()
+{
+  if (buttonREC.isPressed())
+  {
+    is_recording = !is_recording;
+  }
+  if (buttonDSL.isPressed())
+  {
+    Serial.println("Going to sleep now");
+    delay(1000);
+    esp_deep_sleep_start();
+  }
+}
+
+void print_wakeup_reason()
+{
+  esp_sleep_wakeup_cause_t wakeup_reason;
+
+  wakeup_reason = esp_sleep_get_wakeup_cause();
+
+  switch (wakeup_reason)
+  {
+  case ESP_SLEEP_WAKEUP_EXT0:
+    Serial.println("Wakeup caused by external signal using RTC_IO");
+    break;
+  case ESP_SLEEP_WAKEUP_EXT1:
+    Serial.println("Wakeup caused by external signal using RTC_CNTL");
+    break;
+  case ESP_SLEEP_WAKEUP_TIMER:
+    Serial.println("Wakeup caused by timer");
+    break;
+  case ESP_SLEEP_WAKEUP_TOUCHPAD:
+    Serial.println("Wakeup caused by touchpad");
+    break;
+  case ESP_SLEEP_WAKEUP_ULP:
+    Serial.println("Wakeup caused by ULP program");
+    break;
+  default:
+    Serial.printf("Wakeup was not caused by deep sleep: %d\n", wakeup_reason);
+    break;
+  }
 }
