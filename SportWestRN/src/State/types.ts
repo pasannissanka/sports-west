@@ -1,3 +1,5 @@
+import {Peripheral} from 'react-native-ble-manager';
+
 export type ReducerState<T> = {
   devices?: T[];
   connectedDevice?: T;
@@ -47,3 +49,5 @@ export type BleStates<T> =
   | {
       type: 'disconnected';
     };
+
+export type Device = Peripheral & {connected: boolean};

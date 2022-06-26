@@ -24,6 +24,7 @@ import HomeScreen from './Screens/Home.Screen';
 import SessionScreen from './Screens/Session.Screen';
 import {SettingsScreen} from './Screens/Settings.Screen';
 import {BLEContext, BLEContextReducer, BLEInitState} from './State/BLEContext';
+import {Device} from './State/types';
 
 const BleManagerModule = NativeModules.BleManager;
 const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
@@ -32,6 +33,7 @@ const Tab = createBottomTabNavigator();
 
 const App = () => {
   const [BLEState, BLEDispatch] = useReducer(BLEContextReducer, BLEInitState);
+  const peripherals = new Map<string, Device>();
 
   // BleManager Listeners
   const handleUpdateValueForCharacteristic = (data: any) => {
@@ -49,6 +51,8 @@ const App = () => {
     if (!peripheral.name) {
       peripheral.name = 'NO NAME';
     }
+    peripherals.set(peripheral.id, {...peripheral, connected: false});
+
     BLEDispatch({
       type: 'device_found',
       device: peripheral,
@@ -56,13 +60,14 @@ const App = () => {
   };
 
   const handleDisconnectedPeripheral = (data: any) => {
-    // let peripheral = peripherals.get(data.peripheral);
-    let peripheral = BLEState.devices?.find(dev => dev.id === data.peripheral);
+    let peripheral = peripherals.get(data.peripheral);
 
     if (peripheral) {
+      peripheral.connected = false;
+      peripherals.set(peripheral.id, peripheral);
+      console.log('disconnected', peripheral);
       BLEDispatch({type: 'disconnected'});
     }
-    console.log('Disconnected from ' + data.peripheral);
   };
 
   const handleStopScan = () => {
@@ -73,13 +78,12 @@ const App = () => {
     peripheral: string;
     status: number;
   }) => {
-    const peripheral = BLEState.devices?.find(
-      dev => dev.id === data.peripheral,
-    );
-    console.log(data, peripheral, BLEState, 'BleManagerConnectPeripheral');
-    // if (peripheral) {
-    //   BLEDispatch({type: 'connected', device: peripheral});
-    // }
+    const peripheral = peripherals.get(data.peripheral);
+    if (peripheral) {
+      peripheral.connected = true;
+      peripherals.set(peripheral.id, peripheral);
+      BLEDispatch({type: 'connected', device: peripheral});
+    }
   };
 
   const retrieveConnected = () => {
@@ -89,9 +93,10 @@ const App = () => {
       }
       console.log(results);
       for (let i = 0; i < results.length; i++) {
-        let peripheral = results[i] as Peripheral;
-        console.log('Connected Device', peripheral);
+        let peripheral = results[i];
+        peripherals.set(peripheral.id, {...peripheral, connected: true});
         BLEDispatch({type: 'connected', device: peripheral});
+        console.log('Connected Device', peripheral);
       }
     });
   };
@@ -175,7 +180,7 @@ const App = () => {
         }}>
         <NavigationContainer>
           <Tab.Navigator
-            initialRouteName="Home"
+            initialRouteName="MainTab"
             screenOptions={{
               tabBarActiveTintColor: '#1677FF',
               tabBarShowLabel: false,
@@ -183,7 +188,7 @@ const App = () => {
               headerTitle: 'Sports Vest',
             }}>
             <Tab.Screen
-              name="Home"
+              name="Main"
               component={HomeScreen}
               options={{
                 tabBarIcon: ({color}) => (
@@ -192,7 +197,7 @@ const App = () => {
               }}
             />
             <Tab.Screen
-              name="Sessions"
+              name="SessionTab"
               component={SessionScreen}
               options={{
                 tabBarIcon: ({color}) => (
@@ -201,7 +206,7 @@ const App = () => {
               }}
             />
             <Tab.Screen
-              name="Settings"
+              name="SettingTab"
               component={SettingsScreen}
               options={{
                 tabBarIcon: ({color}) => (

@@ -1,18 +1,16 @@
-import {View, Text} from 'react-native';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import React from 'react';
+import SessionPage from '../Pages/Session/Session.page';
 import NoDevice from './MessageScreen/NoDevice';
-import {useBLEContext} from '../State/BLEContext';
+
+const Stack = createNativeStackNavigator();
 
 export default function SessionScreen() {
-  const {state} = useBLEContext();
-
-  if (!state?.connectedDevice) {
-    return <NoDevice />;
-  }
   return (
-    <View>
-      <Text>SessionScreen</Text>
-    </View>
+    <Stack.Navigator screenOptions={{headerShown: false}}>
+      <Stack.Screen name="SessionPage" component={SessionPage} />
+      <Stack.Screen name="NoDevicePage" component={NoDevice} />
+    </Stack.Navigator>
   );
 }
 

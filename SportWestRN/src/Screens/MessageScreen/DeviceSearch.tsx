@@ -1,7 +1,8 @@
 import {IconFill} from '@ant-design/icons-react-native';
 import {Button} from '@ant-design/react-native';
 import {BottomSheetFlatList} from '@gorhom/bottom-sheet';
-import React, {useCallback, useMemo} from 'react';
+import {NavigationContext} from '@react-navigation/native';
+import React, {useCallback, useEffect, useMemo} from 'react';
 import {StyleSheet} from 'react-native';
 import BleManager, {Peripheral} from 'react-native-ble-manager';
 import styled from 'styled-components/native';
@@ -9,6 +10,13 @@ import {useBLEContext} from '../../State/BLEContext';
 
 export default function DeviceSearch() {
   const {state, dispatch} = useBLEContext();
+  const navigation = React.useContext(NavigationContext);
+
+  useEffect(() => {
+    if (state?.connectedDevice) {
+      navigation?.navigate('HomePage');
+    }
+  }, [navigation, state?.connectedDevice]);
 
   const data = useMemo(
     () =>

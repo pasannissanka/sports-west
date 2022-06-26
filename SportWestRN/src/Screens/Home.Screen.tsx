@@ -1,21 +1,16 @@
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import React from 'react';
-import {Text, View} from 'react-native';
-import {useBLEContext} from '../State/BLEContext';
+import HomePage from '../Pages/Home/Home.page';
 import NoDevice from './MessageScreen/NoDevice';
 
+const Stack = createNativeStackNavigator();
+
 const HomeScreen = () => {
-  const {state} = useBLEContext();
-
-  if (!state?.connectedDevice) {
-    return <NoDevice />;
-  }
-
   return (
-    <View>
-      <Text style={{color: '#000'}}>
-        Connected - {state.connectedDevice.advertising.localName}
-      </Text>
-    </View>
+    <Stack.Navigator screenOptions={{headerShown: false}}>
+      <Stack.Screen name="HomePage" component={HomePage} />
+      <Stack.Screen name="NoDevicePage" component={NoDevice} />
+    </Stack.Navigator>
   );
 };
 
