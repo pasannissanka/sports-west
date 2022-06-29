@@ -22,6 +22,7 @@ import BleManager, {Peripheral} from 'react-native-ble-manager';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {
   connectDevice,
+  Device,
   deviceDisconnected,
   foundDevice,
   scanDevicesEnd,
@@ -30,8 +31,6 @@ import {useAppDispatch} from './hooks/reduxHooks';
 import HomeScreen from './Screens/Home.Screen';
 import SessionScreen from './Screens/Session.Screen';
 import {SettingsScreen} from './Screens/Settings.Screen';
-import {Device} from './State/types';
-
 const BleManagerModule = NativeModules.BleManager;
 const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 
