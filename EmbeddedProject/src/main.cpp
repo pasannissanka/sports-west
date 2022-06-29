@@ -10,13 +10,15 @@
 #include <BLEDevice.h>
 #include <BLEServer.h>
 
+#define USE_ARDUINO_INTERRUPTS false // Set-up low-level interrupts for most acurate BPM math.
+#include <PulseSensorPlayground.h>   // Includes the PulseSensorPlayground Library.
+
 // Instantiate classes for communicating with the NEO-6M GPS module
 TinyGPS gps;
 SoftwareSerial ss(16, 17);
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
-
 #define SERVICE_UUID "08bfe3db-2297-466d-9453-c32f65eb5747"
 #define CHARACTERISTIC_UUID "055aedc8-c77b-4565-bf6c-be35f83997da"
 
@@ -44,6 +46,15 @@ int button_DSL_state = 0;
 ezButton buttonREC(buttonPin_REC); // create ezButton object
 ezButton buttonDSL(buttonPin_DSL); // create ezButton object
 
+// Pulse sensor
+const int PULSE_INPUT = GPIO_NUM_36;
+const int PULSE_BLINK = GPIO_NUM_2; // Pin 13 is the on-board LED
+const int THRESHOLD = 2000;         // Adjust this number to avoid noise when idle
+
+PulseSensorPlayground pulseSensor; // Creates an instance of the PulseSensorPlayground object called "pulseSensor"
+byte samplesUntilReport;
+const byte SAMPLES_PER_SERIAL_SAMPLE = 10;
+
 int is_recording = 0;
 
 void getReadings();
@@ -53,11 +64,16 @@ void writeFile(fs::FS &fs, const char *path, const char *message);
 void appendFile(fs::FS &fs, const char *path, const char *message);
 void listenButtonPress();
 void print_wakeup_reason();
+void readPulseSensor();
 
 void setup()
 {
   // Start serial communication for debugging purposes
   Serial.begin(115200);
+
+  // setup ext wakeup
+  print_wakeup_reason();
+  esp_sleep_enable_ext0_wakeup(buttonPin_DSL, HIGH);
 
   // Setup buttons
   buttonREC.setDebounceTime(50); // set debounce time to 50 milliseconds
@@ -66,9 +82,27 @@ void setup()
   // initialize the LED pin as an output
   pinMode(ledPin_REC, OUTPUT);
 
+  // Configure the PulseSensor object, by assigning our variables to it.
+  pulseSensor.analogInput(PULSE_INPUT);
+  pulseSensor.blinkOnPulse(PULSE_BLINK); // auto-magically blink Arduino's LED with heartbeat.
+  pulseSensor.setThreshold(THRESHOLD);
+
+  // Skip the first SAMPLES_PER_SERIAL_SAMPLE in the loop().
+  samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
+
+  // Double-check the "pulseSensor" object was created and "began" seeing a signal.
+  if (pulseSensor.begin())
+  {
+    Serial.println("created pulseSensor Object !"); // This prints one time at Arduino power-up,  or on Arduino reset.
+  }
+
+  // Start communication over software serial with the NEO-6M GPS module
+  ss.begin(9600);
+
+  // Bluetooth init
   Serial.println("Starting BLE Server!");
 
-  BLEDevice::init("ESP32-BLE-Server");
+  BLEDevice::init("SMART SPORTS VEST");
   pServer = BLEDevice::createServer();
   pService = pServer->createService(SERVICE_UUID);
   pCharacteristic = pService->createCharacteristic(
@@ -78,20 +112,13 @@ void setup()
 
   pCharacteristic->setValue("Hello, World!");
   pService->start();
-  // BLEAdvertising *pAdvertising = pServer->getAdvertising();
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
   pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
-  // pAdvertising->start();
-  Serial.println("Characteristic defined! Now you can read it in the Client!");
-
-  delay(2000);
-
-  // Start communication over software serial with the NEO-6M GPS module
-  ss.begin(9600);
+  // Serial.println("Characteristic defined! Now you can read it in the Client!");
 
   // Initialize SD card
   SD.begin(SD_CS);
@@ -119,41 +146,33 @@ void setup()
 
   file.close();
 
-  print_wakeup_reason();
-
-  // setup ext wakeup
-  esp_sleep_enable_ext0_wakeup(buttonPin_DSL, HIGH);
+  delay(2000);
 }
 
 void loop()
 {
   buttonREC.loop();
   buttonDSL.loop();
-
   listenButtonPress();
-  Serial.print("Is recoring");
-  Serial.println(is_recording);
 
-  if (is_recording == HIGH)
+  if (pulseSensor.sawNewSample())
   {
-    // getReadings();  // from the NEO-6M GPS module
-    // getTimeStamp(); // from the NTP server
-    // logSDCard();
-    digitalWrite(ledPin_REC, HIGH);
+    /*
+       Every so often, send the latest Sample.
+       We don't print every sample, because our baud rate
+       won't support that much I/O.
+    */
+    if (--samplesUntilReport == (byte)0)
+    {
+      samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
+      /*
+         At about the beginning of every heartbeat,
+         report the heart rate and inter-beat-interval.
+      */
+      readPulseSensor();
+    }
+    delay(20);
   }
-  else
-  {
-    digitalWrite(ledPin_REC, LOW);
-  }
-
-  std::string value = pCharacteristic->getValue();
-  Serial.print("The new characteristic value is: ");
-  Serial.println(value.c_str());
-
-  delay(1000);
-
-  // Increment readingID on every new reading
-  // readingID++;
 }
 
 // Function to get the GPS data
@@ -267,5 +286,20 @@ void print_wakeup_reason()
   default:
     Serial.printf("Wakeup was not caused by deep sleep: %d\n", wakeup_reason);
     break;
+  }
+}
+
+void readPulseSensor()
+{
+
+  int myBPM = pulseSensor.getBeatsPerMinute(); // Calls function on our pulseSensor object that returns BPM as an "int".
+                                               // "myBPM" hold this BPM value now.
+  // Serial.println(myBPM);
+
+  if (pulseSensor.sawStartOfBeat())
+  {                                               // Constantly test to see if "a beat happened".
+    Serial.println("♥  A HeartBeat Happened ! "); // If test is "true", print a message "a heartbeat happened".
+    Serial.print("BPM: ");                        // Print phrase "BPM: "
+    Serial.println(myBPM);                        // Print the value inside of myBPM.
   }
 }
