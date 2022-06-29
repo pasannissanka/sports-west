@@ -1,19 +1,19 @@
-import {View, Text} from 'react-native';
-import React, {useEffect} from 'react';
-import {useBLEContext} from '../../State/BLEContext';
 import {NavigationContext} from '@react-navigation/native';
+import React, {useEffect} from 'react';
+import {Text, View} from 'react-native';
+import {useAppSelector} from '../../hooks/reduxHooks';
 
 export default function HomePage() {
   const navigation = React.useContext(NavigationContext);
-  const {state} = useBLEContext();
+  const bluetoothState = useAppSelector(state => state.bluetooth);
 
   useEffect(() => {
-    if (!state?.connectedDevice) {
+    if (!bluetoothState?.connectedDevice) {
       navigation?.navigate('NoDevicePage');
     } else {
       navigation?.navigate('HomePage');
     }
-  }, [navigation, state?.connectedDevice]);
+  }, [navigation, bluetoothState?.connectedDevice]);
 
   return (
     <View>

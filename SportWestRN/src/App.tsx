@@ -11,7 +11,7 @@
 import Icon from '@ant-design/react-native/lib/icon';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {NavigationContainer} from '@react-navigation/native';
-import React, {useEffect, useReducer} from 'react';
+import React, {useEffect} from 'react';
 import {
   NativeEventEmitter,
   NativeModules,
@@ -20,10 +20,16 @@ import {
 } from 'react-native';
 import BleManager, {Peripheral} from 'react-native-ble-manager';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
+import {
+  connectDevice,
+  deviceDisconnected,
+  foundDevice,
+  scanDevicesEnd,
+} from './features/bluetooth/bluetoothSlice';
+import {useAppDispatch} from './hooks/reduxHooks';
 import HomeScreen from './Screens/Home.Screen';
 import SessionScreen from './Screens/Session.Screen';
 import {SettingsScreen} from './Screens/Settings.Screen';
-import {BLEContext, BLEContextReducer, BLEInitState} from './State/BLEContext';
 import {Device} from './State/types';
 
 const BleManagerModule = NativeModules.BleManager;
@@ -32,7 +38,7 @@ const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 const Tab = createBottomTabNavigator();
 
 const App = () => {
-  const [BLEState, BLEDispatch] = useReducer(BLEContextReducer, BLEInitState);
+  const dispatch = useAppDispatch();
   const peripherals = new Map<string, Device>();
 
   // BleManager Listeners
@@ -52,11 +58,7 @@ const App = () => {
       peripheral.name = 'NO NAME';
     }
     peripherals.set(peripheral.id, {...peripheral, connected: false});
-
-    BLEDispatch({
-      type: 'device_found',
-      device: peripheral,
-    });
+    dispatch(foundDevice({...peripheral, connected: false}));
   };
 
   const handleDisconnectedPeripheral = (data: any) => {
@@ -66,12 +68,12 @@ const App = () => {
       peripheral.connected = false;
       peripherals.set(peripheral.id, peripheral);
       console.log('disconnected', peripheral);
-      BLEDispatch({type: 'disconnected'});
+      dispatch(deviceDisconnected());
     }
   };
 
   const handleStopScan = () => {
-    BLEDispatch({type: 'scan_success'});
+    dispatch(scanDevicesEnd());
   };
 
   const handleConnectPeripheral = (data: {
@@ -82,7 +84,8 @@ const App = () => {
     if (peripheral) {
       peripheral.connected = true;
       peripherals.set(peripheral.id, peripheral);
-      BLEDispatch({type: 'connected', device: peripheral});
+      console.log(peripheral);
+      dispatch(connectDevice(peripheral));
     }
   };
 
@@ -95,13 +98,11 @@ const App = () => {
       for (let i = 0; i < results.length; i++) {
         let peripheral = results[i];
         peripherals.set(peripheral.id, {...peripheral, connected: true});
-        BLEDispatch({type: 'connected', device: peripheral});
+        dispatch(connectDevice({...peripheral, connected: true}));
         console.log('Connected Device', peripheral);
       }
     });
   };
-
-  console.log(BLEState);
 
   useEffect(() => {
     BleManager.start({showAlert: false}).then(() => {
@@ -173,50 +174,44 @@ const App = () => {
 
   return (
     <GestureHandlerRootView style={{flex: 1}}>
-      <BLEContext.Provider
-        value={{
-          dispatch: BLEDispatch,
-          state: BLEState,
-        }}>
-        <NavigationContainer>
-          <Tab.Navigator
-            initialRouteName="MainTab"
-            screenOptions={{
-              tabBarActiveTintColor: '#1677FF',
-              tabBarShowLabel: false,
-              headerTitleAlign: 'center',
-              headerTitle: 'Sports Vest',
-            }}>
-            <Tab.Screen
-              name="Main"
-              component={HomeScreen}
-              options={{
-                tabBarIcon: ({color}) => (
-                  <Icon name="home" size="lg" color={color} />
-                ),
-              }}
-            />
-            <Tab.Screen
-              name="SessionTab"
-              component={SessionScreen}
-              options={{
-                tabBarIcon: ({color}) => (
-                  <Icon name="play-circle" size="lg" color={color} />
-                ),
-              }}
-            />
-            <Tab.Screen
-              name="SettingTab"
-              component={SettingsScreen}
-              options={{
-                tabBarIcon: ({color}) => (
-                  <Icon name="bars" size="lg" color={color} />
-                ),
-              }}
-            />
-          </Tab.Navigator>
-        </NavigationContainer>
-      </BLEContext.Provider>
+      <NavigationContainer>
+        <Tab.Navigator
+          initialRouteName="MainTab"
+          screenOptions={{
+            tabBarActiveTintColor: '#1677FF',
+            tabBarShowLabel: false,
+            headerTitleAlign: 'center',
+            headerTitle: 'Sports Vest',
+          }}>
+          <Tab.Screen
+            name="Main"
+            component={HomeScreen}
+            options={{
+              tabBarIcon: ({color}) => (
+                <Icon name="home" size="lg" color={color} />
+              ),
+            }}
+          />
+          <Tab.Screen
+            name="SessionTab"
+            component={SessionScreen}
+            options={{
+              tabBarIcon: ({color}) => (
+                <Icon name="play-circle" size="lg" color={color} />
+              ),
+            }}
+          />
+          <Tab.Screen
+            name="SettingTab"
+            component={SettingsScreen}
+            options={{
+              tabBarIcon: ({color}) => (
+                <Icon name="bars" size="lg" color={color} />
+              ),
+            }}
+          />
+        </Tab.Navigator>
+      </NavigationContainer>
     </GestureHandlerRootView>
   );
 };

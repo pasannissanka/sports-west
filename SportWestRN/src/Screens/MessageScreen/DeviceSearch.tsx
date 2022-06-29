@@ -4,23 +4,28 @@ import {BottomSheetFlatList} from '@gorhom/bottom-sheet';
 import {NavigationContext} from '@react-navigation/native';
 import React, {useCallback, useEffect, useMemo} from 'react';
 import {StyleSheet} from 'react-native';
-import BleManager, {Peripheral} from 'react-native-ble-manager';
+import {Peripheral} from 'react-native-ble-manager';
 import styled from 'styled-components/native';
-import {useBLEContext} from '../../State/BLEContext';
+import {
+  connectDevice,
+  scanDevices,
+} from '../../features/bluetooth/bluetoothSlice';
+import {useAppDispatch, useAppSelector} from '../../hooks/reduxHooks';
 
 export default function DeviceSearch() {
-  const {state, dispatch} = useBLEContext();
+  const dispatch = useAppDispatch();
+  const bluetoothState = useAppSelector(state => state.bluetooth);
   const navigation = React.useContext(NavigationContext);
 
   useEffect(() => {
-    if (state?.connectedDevice) {
+    if (bluetoothState.connectedDevice) {
       navigation?.navigate('HomePage');
     }
-  }, [navigation, state?.connectedDevice]);
+  }, [navigation, bluetoothState.connectedDevice]);
 
   const data = useMemo(
     () =>
-      state?.devices?.map(dev => {
+      bluetoothState.devices?.map(dev => {
         return {
           id: dev.id,
           name: dev.name,
@@ -28,23 +33,18 @@ export default function DeviceSearch() {
           advertising: dev.advertising,
         } as Peripheral;
       }),
-    [state?.devices],
+    [bluetoothState.devices],
   );
 
-  console.log(state);
+  console.log(bluetoothState);
 
   const handleBleScan = () => {
     // display the Activityindicator
-    dispatch!({type: 'scan'});
 
     // scan devices
-    if (!state?.isLoading) {
+    if (!bluetoothState.isLoading) {
       const deviceServiceUUID = '08bfe3db-2297-466d-9453-c32f65eb5747';
-      console.log(deviceServiceUUID);
-
-      BleManager.scan([deviceServiceUUID], 5, true).catch(err => {
-        dispatch!({type: 'error', error: err});
-      });
+      dispatch(scanDevices(deviceServiceUUID));
     }
   };
 
@@ -54,15 +54,7 @@ export default function DeviceSearch() {
   };
 
   const handleConnect = (peripherial: Peripheral) => {
-    dispatch!({type: 'connect'});
-    BleManager.connect(peripherial.id)
-      .then(() => {
-        dispatch!({type: 'connected', device: peripherial});
-      })
-      .catch(err => {
-        console.log(err);
-        dispatch!({type: 'error', error: err});
-      });
+    dispatch(connectDevice({...peripherial, connected: false}));
   };
 
   const renderItem = useCallback(
@@ -71,13 +63,13 @@ export default function DeviceSearch() {
         <DeviceButton activeOpacity={0.9}>
           <ImgWrapper>
             <Img source={require('../../../assets/t-shirt_front.png')} />
-            {state?.connectedDevice?.id === item.id && (
+            {bluetoothState?.connectedDevice?.id === item.id && (
               <SuccessIcon name="check-circle" size={35} color="#00C514" />
             )}
           </ImgWrapper>
           <StyledText>{item.name}</StyledText>
         </DeviceButton>
-        {state?.connectedDevice?.id === item.id ? (
+        {bluetoothState?.connectedDevice?.id === item.id ? (
           <ConnectedText>Connected</ConnectedText>
         ) : (
           <ConnectButton onPress={() => handleConnect(item)} type="ghost">
@@ -86,7 +78,7 @@ export default function DeviceSearch() {
         )}
       </ItemContainer>
     ),
-    [state?.connectedDevice],
+    [bluetoothState.connectedDevice],
   );
 
   return (
@@ -96,7 +88,7 @@ export default function DeviceSearch() {
         keyExtractor={i => i.id}
         renderItem={renderItem}
         contentContainerStyle={styles.contentContainer}
-        refreshing={state?.isLoading}
+        refreshing={bluetoothState?.isLoading}
         onRefresh={handleRefresh}
       />
     </Container>
