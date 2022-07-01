@@ -1,8 +1,15 @@
 import {createAsyncThunk, createSlice, PayloadAction} from '@reduxjs/toolkit';
-import {Peripheral} from 'react-native-ble-manager';
-import {connectDeviceBle, searchDevicesBle} from '../../util/bluetooth';
+import {Peripheral, PeripheralInfo} from 'react-native-ble-manager';
+import {
+  connectDeviceBle,
+  retrieveServicesBle,
+  searchDevicesBle,
+} from '../../util/bluetooth';
 
-export type Device = Peripheral & {connected: boolean};
+export type Device = Peripheral & {
+  connected: boolean;
+  peripheralInfo?: PeripheralInfo;
+};
 
 const initialState: {
   isLoading: boolean;
@@ -23,8 +30,18 @@ export const scanDevices = createAsyncThunk(
 
 export const connectDevice = createAsyncThunk(
   'bluetooth/connectDevice',
-  async (peripheral: Device) => {
-    await connectDeviceBle(peripheral.id);
+  async (peripheral: Device, {dispatch}) => {
+    const result = await connectDeviceBle(peripheral.id);
+    dispatch(retrieveDeviceServices(peripheral.id));
+    return result;
+  },
+);
+
+export const retrieveDeviceServices = createAsyncThunk(
+  'bluetooth/retrieveServices',
+  async (peripheralId: string) => {
+    const peripheralInfo = await retrieveServicesBle(peripheralId);
+    return peripheralInfo;
   },
 );
 
@@ -81,7 +98,6 @@ export const bluetoothSlice = createSlice({
           never
         >,
       ) => {
-        console.log(action, 'connected device');
         return {
           ...state,
           isLoading: false,
@@ -100,6 +116,32 @@ export const bluetoothSlice = createSlice({
         ...state,
         error: payload,
         isLoading: true,
+      };
+    });
+    builder.addCase(retrieveDeviceServices.pending, state => {
+      return {
+        ...state,
+        isLoading: true,
+      };
+    });
+    builder.addCase(retrieveDeviceServices.fulfilled, (state, action) => {
+      console.log('retrieve', action);
+      if (state.connectedDevice && action.payload) {
+        return {
+          ...state,
+          connectedDevice: {
+            ...state.connectedDevice,
+            peripheralInfo: action.payload,
+          },
+        };
+      }
+      return {...state, isLoading: false};
+    });
+    builder.addCase(retrieveDeviceServices.rejected, (state, action) => {
+      return {
+        ...state,
+        isLoading: false,
+        error: action.error,
       };
     });
   },

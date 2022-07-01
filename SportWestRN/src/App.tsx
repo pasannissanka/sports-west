@@ -27,10 +27,17 @@ import {
   foundDevice,
   scanDevicesEnd,
 } from './features/bluetooth/bluetoothSlice';
-import {useAppDispatch} from './hooks/reduxHooks';
+import {useAppDispatch, useAppSelector} from './hooks/reduxHooks';
 import HomeScreen from './Screens/Home.Screen';
 import SessionScreen from './Screens/Session.Screen';
 import {SettingsScreen} from './Screens/Settings.Screen';
+import {readDataBle, writeDataBle} from './util/bluetooth';
+import {
+  SERVICE_UUID,
+  SESSION_CHARACTERISTIC_UUID,
+  TIMER_CHARACTERISTIC_UUID,
+} from '@env';
+
 const BleManagerModule = NativeModules.BleManager;
 const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 
@@ -38,6 +45,7 @@ const Tab = createBottomTabNavigator();
 
 const App = () => {
   const dispatch = useAppDispatch();
+  const bluetoothState = useAppSelector(state => state.bluetooth);
   const peripherals = new Map<string, Device>();
 
   // BleManager Listeners
@@ -170,6 +178,31 @@ const App = () => {
       BleManagerConnectPeripheralListener.remove();
     };
   }, []);
+
+  useEffect(() => {
+    if (
+      bluetoothState.connectedDevice &&
+      bluetoothState.connectedDevice.peripheralInfo
+    ) {
+      console.log(bluetoothState.connectedDevice);
+      const {id, peripheralInfo} = bluetoothState.connectedDevice;
+      // const isRecording = readDataBle(
+      //   id,
+      //   SERVICE_UUID,
+      //   SESSION_CHARACTERISTIC_UUID,
+      // );
+      // console.log(isRecording);
+      const epochNow = Math.floor(Date.now() / 1000);
+      console.log(epochNow);
+
+      writeDataBle(
+        id,
+        SERVICE_UUID,
+        TIMER_CHARACTERISTIC_UUID,
+        String(epochNow),
+      );
+    }
+  }, [bluetoothState.connectedDevice]);
 
   return (
     <GestureHandlerRootView style={{flex: 1}}>
