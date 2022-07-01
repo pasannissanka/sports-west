@@ -8,7 +8,10 @@
 
 // Libraries for Ble (Bluetooth Low Energy Server)
 #include <BLEDevice.h>
-#include <BLEServer.h>
+
+#include <ESP32Time.h>
+
+#include "ble_callback.h"
 
 #define USE_ARDUINO_INTERRUPTS false // Set-up low-level interrupts for most acurate BPM math.
 #include <PulseSensorPlayground.h>   // Includes the PulseSensorPlayground Library.
@@ -21,10 +24,15 @@ SoftwareSerial ss(16, 17);
 // https://www.uuidgenerator.net/
 #define SERVICE_UUID "08bfe3db-2297-466d-9453-c32f65eb5747"
 #define CHARACTERISTIC_UUID "055aedc8-c77b-4565-bf6c-be35f83997da"
+#define TIMER_CHARACTERISTIC_UUID "fde6d164-f411-49e6-997f-268a2adef697"
+#define SESSION_CHARACTERISTIC_UUID "cbc435f5-2d35-4f8d-927e-358f74008aec"
 
 BLEServer *pServer;
 BLEService *pService;
 BLECharacteristic *pCharacteristic;
+
+BLECharacteristic *bmeTimerCharacteristic;
+BLECharacteristic *bmeSessionCharacteristic;
 
 // Define CS pin for the SD card module
 #define SD_CS 5
@@ -66,6 +74,13 @@ void listenButtonPress();
 void print_wakeup_reason();
 void readPulseSensor();
 
+boolean ble_callback::deviceConnected = false;
+
+// ESP32Time rtc;
+
+int offset = 19800;
+ESP32Time rtc(offset);
+
 void setup()
 {
   // Start serial communication for debugging purposes
@@ -102,16 +117,38 @@ void setup()
   // Bluetooth init
   Serial.println("Starting BLE Server!");
 
+  // Create the BLE Device
   BLEDevice::init("SMART SPORTS VEST");
+  // Create the BLE Server
   pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new ble_callback());
+  // Create the BLE Service
   pService = pServer->createService(SERVICE_UUID);
+
+  // Create BLE Characteristics and Create a BLE Descriptor
   pCharacteristic = pService->createCharacteristic(
       CHARACTERISTIC_UUID,
       BLECharacteristic::PROPERTY_READ |
           BLECharacteristic::PROPERTY_WRITE);
 
   pCharacteristic->setValue("Hello, World!");
+
+  bmeTimerCharacteristic = pService->createCharacteristic(
+      TIMER_CHARACTERISTIC_UUID,
+      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
+
+  bmeTimerCharacteristic->setValue(String(rtc.getEpoch()).c_str());
+
+  bmeSessionCharacteristic = pService->createCharacteristic(
+      SESSION_CHARACTERISTIC_UUID,
+      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
+
+  bmeSessionCharacteristic->setValue(String(is_recording).c_str());
+
+  // Start the service
   pService->start();
+
+  // Start advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
   pAdvertising->setScanResponse(true);
@@ -155,8 +192,19 @@ void loop()
   buttonDSL.loop();
   listenButtonPress();
 
+  String epochStr = String(bmeTimerCharacteristic->getValue().c_str());
+  unsigned long epoch = strtol(epochStr.c_str(), NULL, 10);
+
+  rtc.setTime(epoch);
+
+  Serial.print("TIME=");
+  Serial.println(epochStr);
+  Serial.println(epoch);
+  Serial.println(rtc.getDateTime());
+
   if (pulseSensor.sawNewSample())
   {
+
     /*
        Every so often, send the latest Sample.
        We don't print every sample, because our baud rate
@@ -169,7 +217,20 @@ void loop()
          At about the beginning of every heartbeat,
          report the heart rate and inter-beat-interval.
       */
-      readPulseSensor();
+      Serial.print("Is Device connected ");
+      Serial.println(ble_callback::deviceConnected);
+      if (is_recording == HIGH)
+      {
+        getReadings();
+        readPulseSensor();
+
+        digitalWrite(ledPin_REC, HIGH);
+        readingID++;
+      }
+      else
+      {
+        digitalWrite(ledPin_REC, LOW);
+      }
     }
     delay(20);
   }
@@ -294,7 +355,6 @@ void readPulseSensor()
 
   int myBPM = pulseSensor.getBeatsPerMinute(); // Calls function on our pulseSensor object that returns BPM as an "int".
                                                // "myBPM" hold this BPM value now.
-  // Serial.println(myBPM);
 
   if (pulseSensor.sawStartOfBeat())
   {                                               // Constantly test to see if "a beat happened".
