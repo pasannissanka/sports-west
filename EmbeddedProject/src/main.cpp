@@ -9,9 +9,8 @@
 // Libraries for Ble (Bluetooth Low Energy Server)
 #include <BLEDevice.h>
 
-#include <ESP32Time.h>
-
-#include "ble_callback.h"
+#include "date_time.h"
+#include "sd_card.h"
 
 #define USE_ARDUINO_INTERRUPTS false // Set-up low-level interrupts for most acurate BPM math.
 #include <PulseSensorPlayground.h>   // Includes the PulseSensorPlayground Library.
@@ -29,8 +28,8 @@ SoftwareSerial ss(16, 17);
 
 BLEServer *pServer;
 BLEService *pService;
-BLECharacteristic *pCharacteristic;
 
+BLECharacteristic *pCharacteristic;
 BLECharacteristic *bmeTimerCharacteristic;
 BLECharacteristic *bmeSessionCharacteristic;
 
@@ -74,12 +73,15 @@ void listenButtonPress();
 void print_wakeup_reason();
 void readPulseSensor();
 
+// initialize static variables
 boolean ble_callback::deviceConnected = false;
+ESP32Time date_time::rtc = ESP32Time();
 
 // ESP32Time rtc;
-
 int offset = 19800;
-ESP32Time rtc(offset);
+date_time *dateTime;
+
+sd_card *SD_CARD;
 
 void setup()
 {
@@ -117,6 +119,9 @@ void setup()
   // Bluetooth init
   Serial.println("Starting BLE Server!");
 
+  // Initialize time;
+  dateTime = new date_time(offset);
+
   // Create the BLE Device
   BLEDevice::init("SMART SPORTS VEST");
   // Create the BLE Server
@@ -137,7 +142,7 @@ void setup()
       TIMER_CHARACTERISTIC_UUID,
       BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
 
-  bmeTimerCharacteristic->setValue(String(rtc.getEpoch()).c_str());
+  bmeTimerCharacteristic->setValue(String(dateTime->rtc.getEpoch()).c_str());
 
   bmeSessionCharacteristic = pService->createCharacteristic(
       SESSION_CHARACTERISTIC_UUID,
@@ -158,6 +163,8 @@ void setup()
   // Serial.println("Characteristic defined! Now you can read it in the Client!");
 
   // Initialize SD card
+  SD_CARD = new sd_card();
+
   SD.begin(SD_CS);
   if (!SD.begin(SD_CS))
   {
@@ -168,20 +175,8 @@ void setup()
   {
     return;
   }
-  if (!SD.begin(SD_CS))
-  {
-    return; // init failed
-  }
 
-  // If the data.txt file doesn't exist
-  // Create a file on the SD card and write the data labels
-  File file = SD.open("/data.txt");
-  if (!file)
-  {
-    writeFile(SD, "/data.txt", "Reading ID, Date, Time of Day, Latitude, Longitude, \r\n");
-  }
-
-  file.close();
+  SD_CARD->init_files(SD);
 
   delay(2000);
 }
@@ -195,12 +190,12 @@ void loop()
   String epochStr = String(bmeTimerCharacteristic->getValue().c_str());
   unsigned long epoch = strtol(epochStr.c_str(), NULL, 10);
 
-  rtc.setTime(epoch);
+  dateTime->rtc.setTime(epoch);
 
   Serial.print("TIME=");
   Serial.println(epochStr);
   Serial.println(epoch);
-  Serial.println(rtc.getDateTime());
+  Serial.println(dateTime->rtc.getDateTime());
 
   if (pulseSensor.sawNewSample())
   {
@@ -283,28 +278,6 @@ void logSDCard()
 {
   dataMessage = String(readingID) + "," + String(flat) + "," + String(flon) + "\r\n";
   appendFile(SD, "/data.txt", dataMessage.c_str());
-}
-
-// Write to the SD card (DON'T MODIFY THIS FUNCTION)
-void writeFile(fs::FS &fs, const char *path, const char *message)
-{
-  File file = fs.open(path, FILE_WRITE);
-  if (!file)
-  {
-    return;
-  }
-  file.close();
-}
-
-// Append data to the SD card (DON'T MODIFY THIS FUNCTION)
-void appendFile(fs::FS &fs, const char *path, const char *message)
-{
-  File file = fs.open(path, FILE_APPEND);
-  if (!file)
-  {
-    return;
-  }
-  file.close();
 }
 
 void listenButtonPress()

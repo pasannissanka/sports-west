@@ -1,4 +1,7 @@
 #include "FS.h"
+#include "SD.h"
+
+#include "ble_callback.h"
 
 class sd_card
 {
@@ -8,7 +11,16 @@ public:
   sd_card(/* args */);
   ~sd_card();
 
-  void create_recording_dir(fs::FS &fs, String path, String record);
+  // create/ ensure init.txt, data dir
+  void init_files(fs::FS &fs);
+
+  // create record .txt
+  void create_record(fs::FS &fs, String sId);
+
+  static fs::SDFS SD;
+
+private:
+  void make_dir(fs::FS &fs, String path);
   void write_file(fs::FS &fs, String full_path, const char *message);
   void append_file(fs::FS &fs, String full_path, const char *message);
 };
