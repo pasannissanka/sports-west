@@ -196,6 +196,7 @@ void loop()
   buttonDSL.read();
 
   setTime();
+  getReadings();
 
   if (pulseSensor.sawNewSample())
   {
@@ -205,7 +206,6 @@ void loop()
       samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
       readPulseSensor();
     }
-    delay(20);
   }
 }
 
