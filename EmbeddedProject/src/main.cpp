@@ -1,13 +1,8 @@
-// Libraries for NEO-6M GPS module
 #include <TinyGPS.h>
 #include <SoftwareSerial.h>
-#include <ezButton.h>
-
-// Libraries for SD card
 #include "SD.h"
-
-// Libraries for Ble (Bluetooth Low Energy Server)
 #include <BLEDevice.h>
+#include <EasyButton.h>
 
 #include "date_time.h"
 #include "sd_card.h"
@@ -22,14 +17,13 @@ SoftwareSerial ss(16, 17);
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
 #define SERVICE_UUID "08bfe3db-2297-466d-9453-c32f65eb5747"
-#define CHARACTERISTIC_UUID "055aedc8-c77b-4565-bf6c-be35f83997da"
 #define TIMER_CHARACTERISTIC_UUID "fde6d164-f411-49e6-997f-268a2adef697"
 #define SESSION_CHARACTERISTIC_UUID "cbc435f5-2d35-4f8d-927e-358f74008aec"
 
 BLEServer *pServer;
 BLEService *pService;
 
-BLECharacteristic *pCharacteristic;
+// Ble Characteristics
 BLECharacteristic *bmeTimerCharacteristic;
 BLECharacteristic *bmeSessionCharacteristic;
 
@@ -39,39 +33,39 @@ BLECharacteristic *bmeSessionCharacteristic;
 // Save reading number on RTC memory
 RTC_DATA_ATTR int readingID = 0;
 
+// Logging data
 String dataMessage;
+long sessionId;
 
 // Variables to save coordinates
 float flat, flon;
 unsigned long age, sats, hdop;
+int bpm;
 
-const gpio_num_t buttonPin_DSL = GPIO_NUM_13; // the number of the pushbutton pin
-const int buttonPin_REC = GPIO_NUM_12;        // the number of the pushbutton pin
-const int ledPin_REC = GPIO_NUM_14;           // the number of the LED pin
+const gpio_num_t buttonPin_DSL = GPIO_NUM_13; // number of the pushbutton pin
+const int buttonPin_REC = GPIO_NUM_12;        // number of the pushbutton pin
+const int ledPin_REC = GPIO_NUM_14;           // number of the LED pin
 
-int button_DSL_state = 0;
-ezButton buttonREC(buttonPin_REC); // create ezButton object
-ezButton buttonDSL(buttonPin_DSL); // create ezButton object
+EasyButton buttonREC(buttonPin_REC, 50, false, false);
+EasyButton buttonDSL(buttonPin_DSL, 50, false, false);
 
 // Pulse sensor
 const int PULSE_INPUT = GPIO_NUM_36;
 const int PULSE_BLINK = GPIO_NUM_2; // Pin 13 is the on-board LED
-const int THRESHOLD = 2000;         // Adjust this number to avoid noise when idle
+const int PULSE_THRESHOLD = 2000;   // Adjust this number to avoid noise when idle
 
 PulseSensorPlayground pulseSensor; // Creates an instance of the PulseSensorPlayground object called "pulseSensor"
 byte samplesUntilReport;
 const byte SAMPLES_PER_SERIAL_SAMPLE = 10;
 
-int is_recording = 0;
+boolean is_recording = false;
 
 void getReadings();
-void getTimeStamp();
 void logSDCard();
-void writeFile(fs::FS &fs, const char *path, const char *message);
-void appendFile(fs::FS &fs, const char *path, const char *message);
-void listenButtonPress();
 void print_wakeup_reason();
 void readPulseSensor();
+void cbPowerBtn();
+void cbRecordBtn();
 
 // initialize static variables
 boolean ble_callback::deviceConnected = false;
@@ -92,17 +86,19 @@ void setup()
   print_wakeup_reason();
   esp_sleep_enable_ext0_wakeup(buttonPin_DSL, HIGH);
 
-  // Setup buttons
-  buttonREC.setDebounceTime(50); // set debounce time to 50 milliseconds
-  buttonDSL.setDebounceTime(50);
+  buttonDSL.begin();
+  buttonREC.begin();
 
   // initialize the LED pin as an output
   pinMode(ledPin_REC, OUTPUT);
 
+  buttonREC.onPressed(cbRecordBtn);
+  buttonDSL.onPressedFor(2000, cbPowerBtn);
+
   // Configure the PulseSensor object, by assigning our variables to it.
   pulseSensor.analogInput(PULSE_INPUT);
   pulseSensor.blinkOnPulse(PULSE_BLINK); // auto-magically blink Arduino's LED with heartbeat.
-  pulseSensor.setThreshold(THRESHOLD);
+  pulseSensor.setThreshold(PULSE_THRESHOLD);
 
   // Skip the first SAMPLES_PER_SERIAL_SAMPLE in the loop().
   samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
@@ -129,14 +125,6 @@ void setup()
   pServer->setCallbacks(new ble_callback());
   // Create the BLE Service
   pService = pServer->createService(SERVICE_UUID);
-
-  // Create BLE Characteristics and Create a BLE Descriptor
-  pCharacteristic = pService->createCharacteristic(
-      CHARACTERISTIC_UUID,
-      BLECharacteristic::PROPERTY_READ |
-          BLECharacteristic::PROPERTY_WRITE);
-
-  pCharacteristic->setValue("Hello, World!");
 
   bmeTimerCharacteristic = pService->createCharacteristic(
       TIMER_CHARACTERISTIC_UUID,
@@ -183,9 +171,8 @@ void setup()
 
 void loop()
 {
-  buttonREC.loop();
-  buttonDSL.loop();
-  listenButtonPress();
+  buttonREC.read();
+  buttonDSL.read();
 
   String epochStr = String(bmeTimerCharacteristic->getValue().c_str());
   unsigned long epoch = strtol(epochStr.c_str(), NULL, 10);
@@ -195,37 +182,29 @@ void loop()
   Serial.print("TIME=");
   Serial.println(epochStr);
   Serial.println(epoch);
-  Serial.println(dateTime->rtc.getDateTime());
 
+  Serial.println(dateTime->rtc.getDateTime());
+  Serial.print("Is Device connected ");
+  Serial.println(ble_callback::deviceConnected);
+  if (is_recording == true)
+  {
+    digitalWrite(ledPin_REC, HIGH);
+    getReadings();
+
+    logSDCard();
+
+    readingID++;
+  }
+  else
+  {
+    digitalWrite(ledPin_REC, LOW);
+  }
   if (pulseSensor.sawNewSample())
   {
-
-    /*
-       Every so often, send the latest Sample.
-       We don't print every sample, because our baud rate
-       won't support that much I/O.
-    */
     if (--samplesUntilReport == (byte)0)
     {
       samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
-      /*
-         At about the beginning of every heartbeat,
-         report the heart rate and inter-beat-interval.
-      */
-      Serial.print("Is Device connected ");
-      Serial.println(ble_callback::deviceConnected);
-      if (is_recording == HIGH)
-      {
-        getReadings();
-        readPulseSensor();
-
-        digitalWrite(ledPin_REC, HIGH);
-        readingID++;
-      }
-      else
-      {
-        digitalWrite(ledPin_REC, LOW);
-      }
+      readPulseSensor();
     }
     delay(20);
   }
@@ -268,30 +247,36 @@ void getReadings()
   }
 }
 
-void getTimeStamp()
-{
-  // TODO
-}
-
 // Write the sensor readings on the SD card
 void logSDCard()
 {
-  dataMessage = String(readingID) + "," + String(flat) + "," + String(flon) + "\r\n";
-  appendFile(SD, "/data.txt", dataMessage.c_str());
+  dataMessage = String(readingID) + "," + String(dateTime->rtc.getDate()) + "," + String(dateTime->rtc.getTime()) + "," + String(flat) + "," + String(flon) + "," + String(bpm) + ",\r\n";
+  SD_CARD->append_record(SD, String(sessionId), dataMessage.c_str());
 }
 
-void listenButtonPress()
+void cbPowerBtn()
 {
-  if (buttonREC.isPressed())
+  Serial.println("Power button has been pressed!");
+  Serial.println("Going to sleep now");
+  delay(1000);
+  esp_deep_sleep_start();
+}
+
+void cbRecordBtn()
+{
+  Serial.println("Record button has been pressed!");
+  if (is_recording == false)
   {
-    is_recording = !is_recording;
+    Serial.println("Start recording");
+    sessionId = dateTime->rtc.getEpoch();
+    SD_CARD->create_record(SD, String(sessionId));
   }
-  if (buttonDSL.isPressed())
+  else
   {
-    Serial.println("Going to sleep now");
-    delay(1000);
-    esp_deep_sleep_start();
+    Serial.println("Stopped recording");
   }
+  readingID = 0;
+  is_recording = !is_recording;
 }
 
 void print_wakeup_reason()
@@ -325,14 +310,14 @@ void print_wakeup_reason()
 
 void readPulseSensor()
 {
-
   int myBPM = pulseSensor.getBeatsPerMinute(); // Calls function on our pulseSensor object that returns BPM as an "int".
                                                // "myBPM" hold this BPM value now.
 
   if (pulseSensor.sawStartOfBeat())
-  {                                               // Constantly test to see if "a beat happened".
-    Serial.println("♥  A HeartBeat Happened ! "); // If test is "true", print a message "a heartbeat happened".
-    Serial.print("BPM: ");                        // Print phrase "BPM: "
-    Serial.println(myBPM);                        // Print the value inside of myBPM.
+  { // Constantly test to see if "a beat happened".
+    // Serial.println("♥  A HeartBeat Happened ! "); // If test is "true", print a message "a heartbeat happened".
+    // Serial.print("BPM: ");                        // Print phrase "BPM: "
+    // Serial.println(myBPM);                        // Print the value inside of myBPM.
+    bpm = myBPM;
   }
 }

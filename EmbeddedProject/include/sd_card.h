@@ -17,6 +17,8 @@ public:
   // create record .txt
   void create_record(fs::FS &fs, String sId);
 
+  void append_record(fs::FS &fs, String sId, const char *message);
+
   static fs::SDFS SD;
 
 private:
