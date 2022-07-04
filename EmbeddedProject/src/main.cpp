@@ -66,6 +66,7 @@ void print_wakeup_reason();
 void readPulseSensor();
 void cbPowerBtn();
 void cbRecordBtn();
+void setTime();
 
 // initialize static variables
 boolean ble_callback::deviceConnected = false;
@@ -74,6 +75,7 @@ ESP32Time date_time::rtc = ESP32Time();
 // ESP32Time rtc;
 int offset = 19800;
 date_time *dateTime;
+long epoch;
 
 sd_card *SD_CARD;
 
@@ -167,6 +169,7 @@ void setup()
   SD_CARD->init_files(SD);
 
   delay(2000);
+  Serial.println("Ready");
 }
 
 void loop()
@@ -174,23 +177,12 @@ void loop()
   buttonREC.read();
   buttonDSL.read();
 
-  String epochStr = String(bmeTimerCharacteristic->getValue().c_str());
-  unsigned long epoch = strtol(epochStr.c_str(), NULL, 10);
+  setTime();
 
-  dateTime->rtc.setTime(epoch);
-
-  Serial.print("TIME=");
-  Serial.println(epochStr);
-  Serial.println(epoch);
-
-  Serial.println(dateTime->rtc.getDateTime());
-  Serial.print("Is Device connected ");
-  Serial.println(ble_callback::deviceConnected);
   if (is_recording == true)
   {
     digitalWrite(ledPin_REC, HIGH);
     getReadings();
-
     logSDCard();
 
     readingID++;
@@ -199,6 +191,7 @@ void loop()
   {
     digitalWrite(ledPin_REC, LOW);
   }
+
   if (pulseSensor.sawNewSample())
   {
     if (--samplesUntilReport == (byte)0)
@@ -206,7 +199,6 @@ void loop()
       samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
       readPulseSensor();
     }
-    delay(20);
   }
 }
 
@@ -250,8 +242,10 @@ void getReadings()
 // Write the sensor readings on the SD card
 void logSDCard()
 {
-  dataMessage = String(readingID) + "," + String(dateTime->rtc.getDate()) + "," + String(dateTime->rtc.getTime()) + "," + String(flat) + "," + String(flon) + "," + String(bpm) + ",\r\n";
+  dataMessage = String(readingID) + "," + String(dateTime->rtc.getDate()) + "," + String(dateTime->rtc.getEpoch()) + "," + String(flat) + "," + String(flon) + "," + String(bpm) + ",\r\n";
   SD_CARD->append_record(SD, String(sessionId), dataMessage.c_str());
+  Serial.print("Written log ");
+  Serial.print(dataMessage);
 }
 
 void cbPowerBtn()
@@ -319,5 +313,17 @@ void readPulseSensor()
     // Serial.print("BPM: ");                        // Print phrase "BPM: "
     // Serial.println(myBPM);                        // Print the value inside of myBPM.
     bpm = myBPM;
+  }
+}
+
+void setTime()
+{
+  String epochStr = String(bmeTimerCharacteristic->getValue().c_str());
+  long epochl = strtol(epochStr.c_str(), NULL, 10);
+
+  if (epoch != epochl)
+  {
+    epoch = epochl;
+    dateTime->rtc.setTime(epoch);
   }
 }
