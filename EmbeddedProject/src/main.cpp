@@ -68,6 +68,8 @@ void cbPowerBtn();
 void cbRecordBtn();
 void setTime();
 
+void Task1code(void *pvParameters);
+
 // initialize static variables
 boolean ble_callback::deviceConnected = false;
 ESP32Time date_time::rtc = ESP32Time();
@@ -78,6 +80,8 @@ date_time *dateTime;
 long epoch;
 
 sd_card *SD_CARD;
+
+TaskHandle_t Task1;
 
 void setup()
 {
@@ -168,7 +172,21 @@ void setup()
 
   SD_CARD->init_files(SD);
 
-  delay(2000);
+  delay(500);
+  xTaskCreatePinnedToCore(
+      Task1code, /* Task function. */
+      "Task1",   /* name of task. */
+      10000,     /* Stack size of task */
+      NULL,      /* parameter of the task */
+      1,         /* priority of the task */
+      &Task1,    /* Task handle to keep track of created task */
+      0);        /* pin task to core 0 */
+
+  delay(500);
+
+  Serial.print("Main running on core ");
+  Serial.println(xPortGetCoreID());
+
   Serial.println("Ready");
 }
 
@@ -179,26 +197,35 @@ void loop()
 
   setTime();
 
-  if (is_recording == true)
-  {
-    digitalWrite(ledPin_REC, HIGH);
-    getReadings();
-    logSDCard();
-
-    readingID++;
-  }
-  else
-  {
-    digitalWrite(ledPin_REC, LOW);
-  }
-
   if (pulseSensor.sawNewSample())
   {
+    getReadings();
     if (--samplesUntilReport == (byte)0)
     {
       samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
       readPulseSensor();
     }
+    delay(20);
+  }
+}
+
+void Task1code(void *pvParameters)
+{
+  Serial.print("Task1 running on core ");
+  Serial.println(xPortGetCoreID());
+  for (;;)
+  {
+    if (is_recording == true)
+    {
+      digitalWrite(ledPin_REC, HIGH);
+      logSDCard();
+      readingID++;
+    }
+    else
+    {
+      digitalWrite(ledPin_REC, LOW);
+    }
+    delay(1000);
   }
 }
 
@@ -308,10 +335,10 @@ void readPulseSensor()
                                                // "myBPM" hold this BPM value now.
 
   if (pulseSensor.sawStartOfBeat())
-  { // Constantly test to see if "a beat happened".
-    // Serial.println("♥  A HeartBeat Happened ! "); // If test is "true", print a message "a heartbeat happened".
-    // Serial.print("BPM: ");                        // Print phrase "BPM: "
-    // Serial.println(myBPM);                        // Print the value inside of myBPM.
+  {                                               // Constantly test to see if "a beat happened".
+    Serial.println("♥  A HeartBeat Happened ! "); // If test is "true", print a message "a heartbeat happened".
+    Serial.print("BPM: ");                        // Print phrase "BPM: "
+    Serial.println(myBPM);                        // Print the value inside of myBPM.
     bpm = myBPM;
   }
 }
