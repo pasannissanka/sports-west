@@ -1,4 +1,5 @@
 #include <BLEServer.h>
+#include "device_status.h"
 
 class ble_callback : public BLEServerCallbacks
 {
@@ -10,6 +11,16 @@ public:
 
   void onConnect(BLEServer *pServer);
   void onDisconnect(BLEServer *pServer);
+};
 
-  static bool deviceConnected;
+class ble_session_callback : public BLECharacteristicCallbacks
+{
+private:
+  /* data */
+public:
+  ble_session_callback(/* args */);
+  ~ble_session_callback();
+
+  void onRead(BLECharacteristic *pCharacteristic);
+  void onWrite(BLECharacteristic *pCharacteristic);
 };

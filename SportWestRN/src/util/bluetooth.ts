@@ -1,5 +1,4 @@
 import BleManager from 'react-native-ble-manager';
-import {convertString} from 'convert-string';
 
 export const searchDevicesBle = async (deviceServiceUUID: string) => {
   return BleManager.scan([deviceServiceUUID], 5, true);

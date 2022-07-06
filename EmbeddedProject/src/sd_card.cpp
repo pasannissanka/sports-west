@@ -27,7 +27,7 @@ void sd_card::init_files(fs::FS &fs)
 
 void sd_card::create_record(fs::FS &fs, String sId)
 {
-  String sData = sId + "," + String(ble_callback::deviceConnected) + ", \r\n";
+  String sData = sId + "," + String(device_status::deviceConnected) + ", \r\n";
   append_file(fs, String(SESSION_FILE), sData.c_str());
 
   String dataPath = String(DATA_DIR) + "/" + sId + ".txt";

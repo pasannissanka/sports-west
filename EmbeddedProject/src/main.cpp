@@ -71,7 +71,10 @@ void setTime();
 void Task1code(void *pvParameters);
 
 // initialize static variables
-boolean ble_callback::deviceConnected = false;
+boolean device_status::deviceConnected = false;
+boolean device_status::sessionRecording = false;
+uint16_t device_status::connId = 0;
+
 ESP32Time date_time::rtc = ESP32Time();
 
 // ESP32Time rtc;
@@ -140,9 +143,9 @@ void setup()
 
   bmeSessionCharacteristic = pService->createCharacteristic(
       SESSION_CHARACTERISTIC_UUID,
-      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
+      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
 
-  bmeSessionCharacteristic->setValue(String(is_recording).c_str());
+  bmeSessionCharacteristic->setCallbacks(new ble_session_callback());
 
   // Start the service
   pService->start();
@@ -196,7 +199,6 @@ void loop()
   buttonDSL.read();
 
   setTime();
-  getReadings();
 
   if (pulseSensor.sawNewSample())
   {
@@ -213,9 +215,10 @@ void Task1code(void *pvParameters)
 {
   Serial.print("Task1 running on core ");
   Serial.println(xPortGetCoreID());
+
   for (;;)
   {
-    if (is_recording == true)
+    if (device_status::sessionRecording == true)
     {
       digitalWrite(ledPin_REC, HIGH);
       logSDCard();
@@ -279,6 +282,7 @@ void cbPowerBtn()
 {
   Serial.println("Power button has been pressed!");
   Serial.println("Going to sleep now");
+  pServer->disconnect(device_status::connId);
   delay(1000);
   esp_deep_sleep_start();
 }
@@ -286,7 +290,7 @@ void cbPowerBtn()
 void cbRecordBtn()
 {
   Serial.println("Record button has been pressed!");
-  if (is_recording == false)
+  if (device_status::sessionRecording == false)
   {
     Serial.println("Start recording");
     sessionId = dateTime->rtc.getEpoch();
@@ -297,7 +301,10 @@ void cbRecordBtn()
     Serial.println("Stopped recording");
   }
   readingID = 0;
-  is_recording = !is_recording;
+  device_status::sessionRecording = !device_status::sessionRecording;
+  String val = device_status::sessionRecording == true ? "true" : "false";
+  bmeSessionCharacteristic->setValue(val.c_str());
+  bmeSessionCharacteristic->notify();
 }
 
 void print_wakeup_reason()
@@ -335,10 +342,10 @@ void readPulseSensor()
                                                // "myBPM" hold this BPM value now.
 
   if (pulseSensor.sawStartOfBeat())
-  {                                               // Constantly test to see if "a beat happened".
-    Serial.println("♥  A HeartBeat Happened ! "); // If test is "true", print a message "a heartbeat happened".
-    Serial.print("BPM: ");                        // Print phrase "BPM: "
-    Serial.println(myBPM);                        // Print the value inside of myBPM.
+  { // Constantly test to see if "a beat happened".
+    // Serial.println("♥  A HeartBeat Happened ! "); // If test is "true", print a message "a heartbeat happened".
+    // Serial.print("BPM: ");                        // Print phrase "BPM: "
+    // Serial.println(myBPM);                        // Print the value inside of myBPM.
     bpm = myBPM;
   }
 }
