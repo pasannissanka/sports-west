@@ -54,8 +54,8 @@ export default function DeviceSearch() {
     handleBleScan();
   };
 
-  const handleConnect = (peripherial: Peripheral) => {
-    dispatch(connectDevice({...peripherial, connected: false}));
+  const handleConnect = (peripheral: Peripheral) => {
+    dispatch(connectDevice({...peripheral, connected: false}));
   };
 
   const renderItem = useCallback(

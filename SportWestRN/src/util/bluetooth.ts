@@ -18,8 +18,6 @@ export const writeDataBle = async (
   characteristicUUID: string,
   data: string,
 ) => {
-  console.log(data, 'here');
-
   const dataBytes = convertStringToByteArray(data);
 
   return BleManager.write(
@@ -41,11 +39,24 @@ export const readDataBle = async (
     characteristicUUID,
   );
   const buffer = Buffer.from(dataBytes);
-  const data = buffer.readUInt8(1);
-  return data;
+  return buffer.readUInt8(1);
 };
 
-function convertStringToByteArray(str) {
+export const startNotificationBle = async (
+  peripheralId: string,
+  serviceUUID: string,
+  characteristicUUID: string,
+) => {
+  return BleManager.startNotification(
+    peripheralId,
+    serviceUUID,
+    characteristicUUID,
+  );
+};
+
+// Custom method to convert string to byte array
+function convertStringToByteArray(str: any) {
+  // eslint-disable-next-line no-extend-native
   String.prototype.encodeHex = function () {
     var bytes = [];
     for (var i = 0; i < this.length; ++i) {

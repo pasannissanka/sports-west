@@ -1,9 +1,11 @@
 import {configureStore} from '@reduxjs/toolkit';
 import bluetoothReducer from './features/bluetooth/bluetoothSlice';
+import bleDataReducer from './features/bleData/bleDataSlice';
 
 export const store = configureStore({
   reducer: {
     bluetooth: bluetoothReducer,
+    bleData: bleDataReducer,
   },
 });
 

@@ -1,7 +1,8 @@
 import {NavigationContext} from '@react-navigation/native';
 import React, {useEffect} from 'react';
-import {Text, View} from 'react-native';
+import {View} from 'react-native';
 import {useAppSelector} from '../../hooks/reduxHooks';
+import StartSessionScreen from '../../Screens/MessageScreen/StartSession.screen';
 
 export default function HomePage() {
   const navigation = React.useContext(NavigationContext);
@@ -17,7 +18,7 @@ export default function HomePage() {
 
   return (
     <View>
-      <Text>Home.page</Text>
+      <StartSessionScreen />
     </View>
   );
 }

@@ -102,8 +102,8 @@ const App = () => {
         console.log('No connected peripherals');
       }
       console.log(results);
-      for (let i = 0; i < results.length; i++) {
-        let peripheral = results[i];
+      for (const element of results) {
+        let peripheral = element;
         peripherals.set(peripheral.id, {...peripheral, connected: true});
         dispatch(connectDevice({...peripheral, connected: true}));
         console.log('Connected Device', peripheral);

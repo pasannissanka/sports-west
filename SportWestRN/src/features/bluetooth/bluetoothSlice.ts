@@ -24,7 +24,7 @@ const initialState: {
 export const scanDevices = createAsyncThunk(
   'bluetooth/scanDevices',
   async (deviceServiceUUID: string) => {
-    return await searchDevicesBle(deviceServiceUUID);
+    return searchDevicesBle(deviceServiceUUID);
   },
 );
 
@@ -40,8 +40,7 @@ export const connectDevice = createAsyncThunk(
 export const retrieveDeviceServices = createAsyncThunk(
   'bluetooth/retrieveServices',
   async (peripheralId: string) => {
-    const peripheralInfo = await retrieveServicesBle(peripheralId);
-    return peripheralInfo;
+    return retrieveServicesBle(peripheralId);
   },
 );
 
