@@ -3,6 +3,7 @@
 #include "SD.h"
 #include <BLEDevice.h>
 #include <EasyButton.h>
+#include <ArduinoJson.h>
 
 #include "date_time.h"
 #include "sd_card.h"
@@ -30,18 +31,6 @@ BLECharacteristic *bmeSessionCharacteristic;
 // Define CS pin for the SD card module
 #define SD_CS 5
 
-// Save reading number on RTC memory
-RTC_DATA_ATTR int readingID = 0;
-
-// Logging data
-String dataMessage;
-long sessionId;
-
-// Variables to save coordinates
-float flat, flon;
-unsigned long age, sats, hdop;
-int bpm;
-
 const gpio_num_t buttonPin_DSL = GPIO_NUM_13; // number of the pushbutton pin
 const int buttonPin_REC = GPIO_NUM_12;        // number of the pushbutton pin
 const int ledPin_REC = GPIO_NUM_14;           // number of the LED pin
@@ -58,33 +47,69 @@ PulseSensorPlayground pulseSensor; // Creates an instance of the PulseSensorPlay
 byte samplesUntilReport;
 const byte SAMPLES_PER_SERIAL_SAMPLE = 10;
 
-boolean is_recording = false;
-
 void getReadings();
 void logSDCard();
-void print_wakeup_reason();
 void readPulseSensor();
 void cbPowerBtn();
 void cbRecordBtn();
 void setTime();
+void startRecording();
+void stopRecording();
+void notifyBleSessionChar(BLECharacteristic *pCharacteristic);
 
 void Task1code(void *pvParameters);
 
 // initialize static variables
 boolean device_status::deviceConnected = false;
-boolean device_status::sessionRecording = false;
+session_status device_status::sessionStatus;
+
 uint16_t device_status::connId = 0;
 
-ESP32Time date_time::rtc = ESP32Time();
+// Save reading number on RTC memory
+RTC_DATA_ATTR int readingID = 0;
+
+// Logging data
+String dataMessage;
+long sessionId;
+
+// Variables to save coordinates
+float flat, flon;
+unsigned long age, sats, hdop;
+int bpm;
 
 // ESP32Time rtc;
+ESP32Time date_time::rtc = ESP32Time();
 int offset = 19800;
 date_time *dateTime;
 long epoch;
 
 sd_card *SD_CARD;
-
 TaskHandle_t Task1;
+
+class ble_session_callback : public BLECharacteristicCallbacks
+{
+private:
+  /* data */
+public:
+  ble_session_callback() {}
+  ~ble_session_callback() {}
+
+  void onRead(BLECharacteristic *pCharacteristic)
+  {
+  }
+
+  void onWrite(BLECharacteristic *pCharacteristic)
+  {
+    if (device_status::sessionStatus.isRecording)
+    {
+      stopRecording();
+    }
+    else
+    {
+      startRecording();
+    }
+  }
+};
 
 void setup()
 {
@@ -92,7 +117,6 @@ void setup()
   Serial.begin(115200);
 
   // setup ext wakeup
-  print_wakeup_reason();
   esp_sleep_enable_ext0_wakeup(buttonPin_DSL, HIGH);
 
   buttonDSL.begin();
@@ -108,10 +132,8 @@ void setup()
   pulseSensor.analogInput(PULSE_INPUT);
   pulseSensor.blinkOnPulse(PULSE_BLINK); // auto-magically blink Arduino's LED with heartbeat.
   pulseSensor.setThreshold(PULSE_THRESHOLD);
-
   // Skip the first SAMPLES_PER_SERIAL_SAMPLE in the loop().
   samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
-
   // Double-check the "pulseSensor" object was created and "began" seeing a signal.
   if (pulseSensor.begin())
   {
@@ -121,12 +143,11 @@ void setup()
   // Start communication over software serial with the NEO-6M GPS module
   ss.begin(9600);
 
-  // Bluetooth init
-  Serial.println("Starting BLE Server!");
-
   // Initialize time;
   dateTime = new date_time(offset);
 
+  // Bluetooth init
+  Serial.println("Starting BLE Server!");
   // Create the BLE Device
   BLEDevice::init("SMART SPORTS VEST");
   // Create the BLE Server
@@ -134,22 +155,17 @@ void setup()
   pServer->setCallbacks(new ble_callback());
   // Create the BLE Service
   pService = pServer->createService(SERVICE_UUID);
-
-  bmeTimerCharacteristic = pService->createCharacteristic(
-      TIMER_CHARACTERISTIC_UUID,
-      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE);
-
+  bmeTimerCharacteristic = pService->createCharacteristic(TIMER_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ |
+                                                                                         BLECharacteristic::PROPERTY_WRITE);
   bmeTimerCharacteristic->setValue(String(dateTime->rtc.getEpoch()).c_str());
 
-  bmeSessionCharacteristic = pService->createCharacteristic(
-      SESSION_CHARACTERISTIC_UUID,
-      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
-
+  bmeSessionCharacteristic = pService->createCharacteristic(SESSION_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ |
+                                                                                             BLECharacteristic::PROPERTY_WRITE |
+                                                                                             BLECharacteristic::PROPERTY_NOTIFY);
   bmeSessionCharacteristic->setCallbacks(new ble_session_callback());
 
   // Start the service
   pService->start();
-
   // Start advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
@@ -157,7 +173,6 @@ void setup()
   pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
   pAdvertising->setMinPreferred(0x12);
   BLEDevice::startAdvertising();
-  // Serial.println("Characteristic defined! Now you can read it in the Client!");
 
   // Initialize SD card
   SD_CARD = new sd_card();
@@ -172,7 +187,6 @@ void setup()
   {
     return;
   }
-
   SD_CARD->init_files(SD);
 
   delay(500);
@@ -218,7 +232,7 @@ void Task1code(void *pvParameters)
 
   for (;;)
   {
-    if (device_status::sessionRecording == true)
+    if (device_status::sessionStatus.isRecording == true)
     {
       digitalWrite(ledPin_REC, HIGH);
       logSDCard();
@@ -287,52 +301,53 @@ void cbPowerBtn()
   esp_deep_sleep_start();
 }
 
+void startRecording()
+{
+  readingID = 0;
+  device_status::sessionStatus.sessionId = dateTime->rtc.getEpoch();
+  device_status::sessionStatus.isRecording = true;
+  SD_CARD->create_record(SD, String(device_status::sessionStatus.sessionId));
+  device_status::sessionStatus.startTime = dateTime->rtc.getEpoch();
+
+  notifyBleSessionChar(bmeSessionCharacteristic);
+}
+
+void notifyBleSessionChar(BLECharacteristic *pCharacteristic)
+{
+  DynamicJsonDocument doc(200);
+  doc["isRecording"] = device_status::sessionStatus.isRecording;
+  doc["sessionId"] = device_status::sessionStatus.sessionId;
+  doc["startTime"] = device_status::sessionStatus.startTime;
+
+  String jsonStr;
+  serializeJson(doc, jsonStr);
+
+  pCharacteristic->setValue(jsonStr.c_str());
+  pCharacteristic->notify();
+}
+
+void stopRecording()
+{
+  readingID = 0;
+  device_status::sessionStatus.sessionId = -1;
+  device_status::sessionStatus.startTime = -1;
+  device_status::sessionStatus.isRecording = false;
+
+  notifyBleSessionChar(bmeSessionCharacteristic);
+}
+
 void cbRecordBtn()
 {
   Serial.println("Record button has been pressed!");
-  if (device_status::sessionRecording == false)
+  if (device_status::sessionStatus.isRecording == false)
   {
     Serial.println("Start recording");
-    sessionId = dateTime->rtc.getEpoch();
-    SD_CARD->create_record(SD, String(sessionId));
+    startRecording();
   }
   else
   {
     Serial.println("Stopped recording");
-  }
-  readingID = 0;
-  device_status::sessionRecording = !device_status::sessionRecording;
-  String val = device_status::sessionRecording == true ? "true" : "false";
-  bmeSessionCharacteristic->setValue(val.c_str());
-  bmeSessionCharacteristic->notify();
-}
-
-void print_wakeup_reason()
-{
-  esp_sleep_wakeup_cause_t wakeup_reason;
-
-  wakeup_reason = esp_sleep_get_wakeup_cause();
-
-  switch (wakeup_reason)
-  {
-  case ESP_SLEEP_WAKEUP_EXT0:
-    Serial.println("Wakeup caused by external signal using RTC_IO");
-    break;
-  case ESP_SLEEP_WAKEUP_EXT1:
-    Serial.println("Wakeup caused by external signal using RTC_CNTL");
-    break;
-  case ESP_SLEEP_WAKEUP_TIMER:
-    Serial.println("Wakeup caused by timer");
-    break;
-  case ESP_SLEEP_WAKEUP_TOUCHPAD:
-    Serial.println("Wakeup caused by touchpad");
-    break;
-  case ESP_SLEEP_WAKEUP_ULP:
-    Serial.println("Wakeup caused by ULP program");
-    break;
-  default:
-    Serial.printf("Wakeup was not caused by deep sleep: %d\n", wakeup_reason);
-    break;
+    stopRecording();
   }
 }
 
