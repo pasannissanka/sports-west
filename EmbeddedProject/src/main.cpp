@@ -3,7 +3,6 @@
 #include "SD.h"
 #include <BLEDevice.h>
 #include <EasyButton.h>
-#include <ArduinoJson.h>
 
 #include "date_time.h"
 #include "sd_card.h"
@@ -19,14 +18,25 @@ SoftwareSerial ss(16, 17);
 // https://www.uuidgenerator.net/
 #define SERVICE_UUID "08bfe3db-2297-466d-9453-c32f65eb5747"
 #define TIMER_CHARACTERISTIC_UUID "fde6d164-f411-49e6-997f-268a2adef697"
-#define SESSION_CHARACTERISTIC_UUID "cbc435f5-2d35-4f8d-927e-358f74008aec"
+
+// Session data
+#define SESSION_TRIGGER_CUUID "b488d6a7-668e-46c6-b96f-6f0750eb60b6"
+#define SESSION_STATUS_CUUID "cbc435f5-2d35-4f8d-927e-358f74008aec"
+#define SESSION_ID_CUUID "c27816aa-45d9-4015-9871-fc9d54fef218"
+#define SESSION_START_T_CUUID "f8bed3ea-b942-4655-8034-1bcedaaebbd0"
+#define SESSION_END_T_CUUID "495bc49a-ab9f-4e30-9f26-769d223b89ec"
 
 BLEServer *pServer;
 BLEService *pService;
 
 // Ble Characteristics
-BLECharacteristic *bmeTimerCharacteristic;
-BLECharacteristic *bmeSessionCharacteristic;
+BLECharacteristic *pTimerCharacteristic;
+// Session Characteristics
+BLECharacteristic *pSessionTriggerCharacteristic;
+BLECharacteristic *pSessionStatusCharacteristic;
+BLECharacteristic *pSessionIDCharacteristic;
+BLECharacteristic *pSessionStartTimeCharacteristic;
+BLECharacteristic *pSessionEndTimeCharacteristic;
 
 // Define CS pin for the SD card module
 #define SD_CS 5
@@ -55,7 +65,7 @@ void cbRecordBtn();
 void setTime();
 void startRecording();
 void stopRecording();
-void notifyBleSessionChar(BLECharacteristic *pCharacteristic);
+void notifyBleSessionCharacteristic(boolean isStopped);
 
 void Task1code(void *pvParameters);
 
@@ -155,14 +165,27 @@ void setup()
   pServer->setCallbacks(new ble_callback());
   // Create the BLE Service
   pService = pServer->createService(SERVICE_UUID);
-  bmeTimerCharacteristic = pService->createCharacteristic(TIMER_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ |
-                                                                                         BLECharacteristic::PROPERTY_WRITE);
-  bmeTimerCharacteristic->setValue(String(dateTime->rtc.getEpoch()).c_str());
+  pTimerCharacteristic = pService->createCharacteristic(TIMER_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ |
+                                                                                       BLECharacteristic::PROPERTY_WRITE);
+  pTimerCharacteristic->setValue(String(dateTime->rtc.getEpoch()).c_str());
 
-  bmeSessionCharacteristic = pService->createCharacteristic(SESSION_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ |
-                                                                                             BLECharacteristic::PROPERTY_WRITE |
-                                                                                             BLECharacteristic::PROPERTY_NOTIFY);
-  bmeSessionCharacteristic->setCallbacks(new ble_session_callback());
+  // Session Characteristics
+  pSessionTriggerCharacteristic = pService->createCharacteristic(SESSION_TRIGGER_CUUID, BLECharacteristic::PROPERTY_READ |
+                                                                                            BLECharacteristic::PROPERTY_WRITE |
+                                                                                            BLECharacteristic::PROPERTY_NOTIFY);
+  pSessionTriggerCharacteristic->setCallbacks(new ble_session_callback());
+
+  pSessionStatusCharacteristic = pService->createCharacteristic(SESSION_STATUS_CUUID, BLECharacteristic::PROPERTY_READ);
+  pSessionStatusCharacteristic->setValue("false");
+
+  pSessionIDCharacteristic = pService->createCharacteristic(SESSION_ID_CUUID, BLECharacteristic::PROPERTY_READ);
+  pSessionIDCharacteristic->setValue("-1");
+
+  pSessionStartTimeCharacteristic = pService->createCharacteristic(SESSION_START_T_CUUID, BLECharacteristic::PROPERTY_READ);
+  pSessionStartTimeCharacteristic->setValue("-1");
+
+  pSessionEndTimeCharacteristic = pService->createCharacteristic(SESSION_END_T_CUUID, BLECharacteristic::PROPERTY_READ);
+  pSessionEndTimeCharacteristic->setValue("-1");
 
   // Start the service
   pService->start();
@@ -304,26 +327,30 @@ void cbPowerBtn()
 void startRecording()
 {
   readingID = 0;
-  device_status::sessionStatus.sessionId = dateTime->rtc.getEpoch();
+  device_status::sessionStatus.sessionId = dateTime->rtc.getLocalEpoch();
   device_status::sessionStatus.isRecording = true;
   SD_CARD->create_record(SD, String(device_status::sessionStatus.sessionId));
-  device_status::sessionStatus.startTime = dateTime->rtc.getEpoch();
+  device_status::sessionStatus.startTime = dateTime->rtc.getLocalEpoch();
 
-  notifyBleSessionChar(bmeSessionCharacteristic);
+  notifyBleSessionCharacteristic(false);
 }
 
-void notifyBleSessionChar(BLECharacteristic *pCharacteristic)
+void notifyBleSessionCharacteristic(boolean isStopped)
 {
-  DynamicJsonDocument doc(200);
-  doc["isRecording"] = device_status::sessionStatus.isRecording;
-  doc["sessionId"] = device_status::sessionStatus.sessionId;
-  doc["startTime"] = device_status::sessionStatus.startTime;
+  pSessionStatusCharacteristic->setValue(String(device_status::sessionStatus.isRecording ? "true" : "false").c_str());
+  pSessionStatusCharacteristic->notify();
 
-  String jsonStr;
-  serializeJson(doc, jsonStr);
+  pSessionIDCharacteristic->setValue(String(device_status::sessionStatus.sessionId).c_str());
+  pSessionIDCharacteristic->notify();
 
-  pCharacteristic->setValue(jsonStr.c_str());
-  pCharacteristic->notify();
+  pSessionStartTimeCharacteristic->setValue(String(device_status::sessionStatus.startTime).c_str());
+  pSessionStartTimeCharacteristic->notify();
+
+  if (isStopped)
+  {
+    pSessionEndTimeCharacteristic->setValue(String(dateTime->rtc.getEpoch()).c_str());
+    pSessionEndTimeCharacteristic->notify();
+  }
 }
 
 void stopRecording()
@@ -333,7 +360,7 @@ void stopRecording()
   device_status::sessionStatus.startTime = -1;
   device_status::sessionStatus.isRecording = false;
 
-  notifyBleSessionChar(bmeSessionCharacteristic);
+  notifyBleSessionCharacteristic(true);
 }
 
 void cbRecordBtn()
@@ -367,7 +394,7 @@ void readPulseSensor()
 
 void setTime()
 {
-  String epochStr = String(bmeTimerCharacteristic->getValue().c_str());
+  String epochStr = String(pTimerCharacteristic->getValue().c_str());
   long epochl = strtol(epochStr.c_str(), NULL, 10);
 
   if (epoch != epochl)

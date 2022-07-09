@@ -2,7 +2,11 @@ declare module '@env' {
   export const API_BASE: string;
 
   export const SERVICE_UUID: string;
-  export const CHARACTERISTIC_UUID: string;
   export const TIMER_CHARACTERISTIC_UUID: string;
-  export const SESSION_CHARACTERISTIC_UUID: string;
+
+  export const SESSION_TRIGGER_CUUID: string;
+  export const SESSION_STATUS_CUUID: string;
+  export const SESSION_ID_CUUID: string;
+  export const SESSION_START_T_CUUID: string;
+  export const SESSION_END_T_CUUID: string;
 }

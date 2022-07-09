@@ -1,9 +1,17 @@
+import {
+  SERVICE_UUID,
+  SESSION_END_T_CUUID,
+  SESSION_START_T_CUUID,
+  SESSION_STATUS_CUUID,
+  SESSION_TRIGGER_CUUID,
+} from '@env';
 import {createAsyncThunk, createSlice, PayloadAction} from '@reduxjs/toolkit';
 import {Peripheral, PeripheralInfo} from 'react-native-ble-manager';
 import {
   connectDeviceBle,
   retrieveServicesBle,
   searchDevicesBle,
+  startNotificationBle,
 } from '../../util/bluetooth';
 
 export type Device = Peripheral & {
@@ -39,8 +47,44 @@ export const connectDevice = createAsyncThunk(
 
 export const retrieveDeviceServices = createAsyncThunk(
   'bluetooth/retrieveServices',
-  async (peripheralId: string) => {
-    return retrieveServicesBle(peripheralId);
+  async (peripheralId: string, {dispatch}) => {
+    const result = await retrieveServicesBle(peripheralId);
+    dispatch(
+      startSessionNotification({
+        peripheralId: peripheralId,
+        peripheralInfo: result,
+      }),
+    );
+    return result;
+  },
+);
+
+export const startSessionNotification = createAsyncThunk(
+  'bluetooth/notifications/session',
+  async (data: {peripheralId: string; peripheralInfo: PeripheralInfo}) => {
+    const promises = [
+      startNotificationBle(
+        data.peripheralId,
+        SERVICE_UUID,
+        SESSION_STATUS_CUUID,
+      ),
+      startNotificationBle(
+        data.peripheralId,
+        SERVICE_UUID,
+        SESSION_TRIGGER_CUUID,
+      ),
+      startNotificationBle(
+        data.peripheralId,
+        SERVICE_UUID,
+        SESSION_START_T_CUUID,
+      ),
+      startNotificationBle(
+        data.peripheralId,
+        SERVICE_UUID,
+        SESSION_END_T_CUUID,
+      ),
+    ];
+    return Promise.all(promises);
   },
 );
 

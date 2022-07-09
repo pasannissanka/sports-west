@@ -2,6 +2,7 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import React from 'react';
 import SessionPage from '../Pages/Session/Session.page';
 import NoDevice from './MessageScreen/NoDevice';
+import SessionTimer from './SessionTimer';
 
 const Stack = createNativeStackNavigator();
 
@@ -10,6 +11,7 @@ export default function SessionScreen() {
     <Stack.Navigator screenOptions={{headerShown: false}}>
       <Stack.Screen name="SessionPage" component={SessionPage} />
       <Stack.Screen name="NoDevicePage" component={NoDevice} />
+      <Stack.Screen name="SessionTimerPage" component={SessionTimer} />
     </Stack.Navigator>
   );
 }

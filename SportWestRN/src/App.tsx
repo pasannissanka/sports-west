@@ -9,6 +9,14 @@
  */
 
 import Icon from '@ant-design/react-native/lib/icon';
+import {
+  SERVICE_UUID,
+  SESSION_END_T_CUUID,
+  SESSION_ID_CUUID,
+  SESSION_START_T_CUUID,
+  SESSION_STATUS_CUUID,
+  TIMER_CHARACTERISTIC_UUID,
+} from '@env';
 import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {NavigationContainer} from '@react-navigation/native';
 import React, {useEffect} from 'react';
@@ -21,6 +29,12 @@ import {
 import BleManager, {Peripheral} from 'react-native-ble-manager';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {
+  onSessionEndTime,
+  onSessionId,
+  onSessionStartTime,
+  onSessionStatus,
+} from './features/bleData/bleDataSlice';
+import {
   connectDevice,
   Device,
   deviceDisconnected,
@@ -31,12 +45,7 @@ import {useAppDispatch, useAppSelector} from './hooks/reduxHooks';
 import HomeScreen from './Screens/Home.Screen';
 import SessionScreen from './Screens/Session.Screen';
 import {SettingsScreen} from './Screens/Settings.Screen';
-import {readDataBle, writeDataBle} from './util/bluetooth';
-import {
-  SERVICE_UUID,
-  SESSION_CHARACTERISTIC_UUID,
-  TIMER_CHARACTERISTIC_UUID,
-} from '@env';
+import {writeDataBle} from './util/bluetooth';
 
 const BleManagerModule = NativeModules.BleManager;
 const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
@@ -57,6 +66,25 @@ const App = () => {
         data.characteristic,
       data.value,
     );
+
+    const value = String.fromCharCode(...data.value);
+    console.log(value);
+    switch (data.characteristic) {
+      case SESSION_STATUS_CUUID:
+        dispatch(onSessionStatus({value}));
+        break;
+      case SESSION_ID_CUUID:
+        dispatch(onSessionId({value}));
+        break;
+      case SESSION_START_T_CUUID:
+        dispatch(onSessionStartTime({value}));
+        break;
+      case SESSION_END_T_CUUID:
+        dispatch(onSessionEndTime({value}));
+        break;
+      default:
+        break;
+    }
   };
 
   const handleDiscoverPeripheral = (peripheral: Peripheral) => {
@@ -185,15 +213,9 @@ const App = () => {
       bluetoothState.connectedDevice.peripheralInfo
     ) {
       console.log(bluetoothState.connectedDevice);
-      const {id, peripheralInfo} = bluetoothState.connectedDevice;
-      // const isRecording = readDataBle(
-      //   id,
-      //   SERVICE_UUID,
-      //   SESSION_CHARACTERISTIC_UUID,
-      // );
-      // console.log(isRecording);
+      const {id} = bluetoothState.connectedDevice;
+
       const epochNow = Math.floor(Date.now() / 1000);
-      console.log(epochNow);
 
       writeDataBle(
         id,

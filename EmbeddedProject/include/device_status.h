@@ -2,9 +2,9 @@
 
 struct session_status
 {
-  boolean isRecording;
-  long sessionId;
-  long startTime;
+  boolean isRecording = false;
+  long sessionId = 0;
+  long startTime = 0;
 };
 class device_status
 {
