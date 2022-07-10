@@ -79,6 +79,7 @@ export default function DeviceSearch() {
         )}
       </ItemContainer>
     ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [bluetoothState.connectedDevice],
   );
 

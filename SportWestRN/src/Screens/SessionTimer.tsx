@@ -26,6 +26,7 @@ export default function SessionTimer() {
       setOffset(stopwatchOffset);
       start();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bleDataState.runningSession?.startTime]);
 
   const onSessionStop = () => {

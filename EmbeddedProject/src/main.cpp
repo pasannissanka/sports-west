@@ -26,6 +26,8 @@ SoftwareSerial ss(16, 17);
 #define SESSION_START_T_CUUID "f8bed3ea-b942-4655-8034-1bcedaaebbd0"
 #define SESSION_END_T_CUUID "495bc49a-ab9f-4e30-9f26-769d223b89ec"
 
+#define LOGGING_DELAY 5000
+
 BLEServer *pServer;
 BLEService *pService;
 
@@ -239,7 +241,7 @@ void loop()
 
   if (pulseSensor.sawNewSample())
   {
-    getReadings();
+    // getReadings();
     if (--samplesUntilReport == (byte)0)
     {
       samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
@@ -265,7 +267,8 @@ void Task1code(void *pvParameters)
     {
       digitalWrite(ledPin_REC, LOW);
     }
-    delay(1000);
+    // time between logs (5s)
+    delay(LOGGING_DELAY);
   }
 }
 
