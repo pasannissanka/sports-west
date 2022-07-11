@@ -29,6 +29,7 @@ SoftwareSerial ss(16, 17);
 #define SESSION_END_T_CUUID "495bc49a-ab9f-4e30-9f26-769d223b89ec"
 
 #define DATA_TRANSMIT_TRIGGER_CUUID "378ef6c9-9ad1-4309-9534-e1dfe44698af"
+#define DATA_TRANSMIT_PROGRESS_CUUID "feeadf3f-df3f-42f4-933d-20abf58e27ca"
 
 #define BLE_SERVICE_UUID "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
 
@@ -47,6 +48,7 @@ BLECharacteristic *pSessionStartTimeCharacteristic;
 BLECharacteristic *pSessionEndTimeCharacteristic;
 
 BLECharacteristic *pDataTransmitCharacteristic;
+BLECharacteristic *pDataTransmitProgressCharacteristic;
 
 // Define CS pin for the SD card module
 #define SD_CS 5
@@ -129,6 +131,7 @@ public:
 };
 
 boolean isTransmitting = false;
+int transmissionProgress = 0;
 
 class ble_dataTransmission_callback : public BLECharacteristicCallbacks
 {
@@ -213,6 +216,9 @@ void setup()
   pDataTransmitCharacteristic = pService->createCharacteristic(DATA_TRANSMIT_TRIGGER_CUUID, BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
   pDataTransmitCharacteristic->setCallbacks(new ble_dataTransmission_callback());
 
+  pDataTransmitProgressCharacteristic = pService->createCharacteristic(DATA_TRANSMIT_PROGRESS_CUUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+  pDataTransmitProgressCharacteristic->setValue(transmissionProgress);
+
   // Start the service
   pService->start();
 
@@ -288,14 +294,27 @@ void loop()
 
     if (dataFile)
     {
+      unsigned long start = millis();
       while (dataFile.available())
       {
-        Serial.print("Transmission started : SIZE ");
-        Serial.print(dataFile.size());
-        Serial.print(" POSITION : ");
-        Serial.println(dataFile.position());
-
+        int size = dataFile.size();
         BLSerial.write(dataFile.read());
+
+        int position = dataFile.position();
+        int progress = ceil(position / size * 100);
+        if (progress != transmissionProgress)
+        {
+          transmissionProgress = progress;
+
+          if (millis() - start > 5000)
+          {
+            pDataTransmitProgressCharacteristic->setValue(transmissionProgress);
+            pDataTransmitProgressCharacteristic->notify();
+          }
+
+          Serial.print("Progress : ");
+          Serial.println(transmissionProgress);
+        }
       }
       dataFile.close();
       isTransmitting = false;
