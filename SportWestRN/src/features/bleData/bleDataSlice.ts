@@ -15,11 +15,13 @@ export interface BleData {
   sessionRecording: boolean;
   pastSessions: SessionData[];
   runningSession?: SessionData;
+  txSessionData: string;
 }
 
 const initialState: BleData = {
   pastSessions: [],
   sessionRecording: false,
+  txSessionData: '',
 };
 
 export const bleDataSlice = createSlice({
@@ -80,6 +82,12 @@ export const bleDataSlice = createSlice({
         },
       };
     },
+    onSerialData: (state, action: PayloadAction<{value: string}>) => {
+      return {
+        ...state,
+        txSessionData: state.txSessionData.concat(action.payload.value),
+      };
+    },
   },
 });
 
@@ -88,6 +96,7 @@ export const {
   onSessionStartTime,
   onSessionEndTime,
   onSessionId,
+  onSerialData,
 } = bleDataSlice.actions;
 
 export default bleDataSlice.reducer;

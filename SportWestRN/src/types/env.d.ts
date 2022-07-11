@@ -9,4 +9,10 @@ declare module '@env' {
   export const SESSION_ID_CUUID: string;
   export const SESSION_START_T_CUUID: string;
   export const SESSION_END_T_CUUID: string;
+
+  export const BLE_SERVICE_UUID: string;
+  export const RX_CHARACTERISTIC: string;
+  export const TX_CHARACTERISTIC: string;
+
+  export const DATA_TRANSMIT_TRIGGER_CUUID: string;
 }

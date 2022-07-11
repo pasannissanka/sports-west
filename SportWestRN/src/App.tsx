@@ -10,6 +10,7 @@
 
 import Icon from '@ant-design/react-native/lib/icon';
 import {
+  RX_CHARACTERISTIC,
   SERVICE_UUID,
   SESSION_END_T_CUUID,
   SESSION_ID_CUUID,
@@ -29,6 +30,7 @@ import {
 import BleManager, {Peripheral} from 'react-native-ble-manager';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {
+  onSerialData,
   onSessionEndTime,
   onSessionId,
   onSessionStartTime,
@@ -55,6 +57,7 @@ const Tab = createBottomTabNavigator();
 const App = () => {
   const dispatch = useAppDispatch();
   const bluetoothState = useAppSelector(state => state.bluetooth);
+  const bleDataState = useAppSelector(state => state.bleData);
   const peripherals = new Map<string, Device>();
 
   // BleManager Listeners
@@ -68,24 +71,32 @@ const App = () => {
     );
 
     const value = String.fromCharCode(...data.value);
-    console.log(value);
-    switch (data.characteristic) {
-      case SESSION_STATUS_CUUID:
+    switch (data.characteristic.toLowerCase()) {
+      case SESSION_STATUS_CUUID.toLowerCase():
         dispatch(onSessionStatus({value}));
         break;
-      case SESSION_ID_CUUID:
+      case SESSION_ID_CUUID.toLowerCase():
         dispatch(onSessionId({value}));
         break;
-      case SESSION_START_T_CUUID:
+      case SESSION_START_T_CUUID.toLowerCase():
         dispatch(onSessionStartTime({value}));
         break;
-      case SESSION_END_T_CUUID:
+      case SESSION_END_T_CUUID.toLowerCase():
         dispatch(onSessionEndTime({value}));
+        break;
+      case RX_CHARACTERISTIC.toLowerCase():
+        dispatch(onSerialData({value}));
         break;
       default:
         break;
     }
   };
+
+  console.log(
+    bleDataState.txSessionData,
+    ' : ',
+    bleDataState.txSessionData.length,
+  );
 
   const handleDiscoverPeripheral = (peripheral: Peripheral) => {
     console.log('Got ble peripheral', peripheral);

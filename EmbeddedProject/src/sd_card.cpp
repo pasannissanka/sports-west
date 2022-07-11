@@ -8,9 +8,6 @@ sd_card::~sd_card()
 {
 }
 
-#define SESSION_FILE "/session.txt"
-#define DATA_DIR "/data"
-
 void sd_card::init_files(fs::FS &fs)
 {
   File session_file = fs.open(String(SESSION_FILE));
@@ -25,9 +22,9 @@ void sd_card::init_files(fs::FS &fs)
   }
 }
 
-void sd_card::create_record(fs::FS &fs, String sId)
+void sd_card::create_record(fs::FS &fs, String sId, boolean deviceConnected)
 {
-  String sData = sId + "," + String(device_status::deviceConnected) + ", \r\n";
+  String sData = sId + "," + String(deviceConnected) + ", \r\n";
   append_file(fs, String(SESSION_FILE), sData.c_str());
 
   String dataPath = String(DATA_DIR) + "/" + sId + ".txt";

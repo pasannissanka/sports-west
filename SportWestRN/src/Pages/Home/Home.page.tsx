@@ -1,10 +1,16 @@
-import {Icon, NoticeBar} from '@ant-design/react-native';
+import {Button, Icon, NoticeBar} from '@ant-design/react-native';
+import {
+  BLE_SERVICE_UUID,
+  DATA_TRANSMIT_TRIGGER_CUUID,
+  SERVICE_UUID,
+} from '@env';
 import {NavigationContext} from '@react-navigation/native';
 import React, {useEffect, useState} from 'react';
 import {Text} from 'react-native';
 import {useStopwatch} from 'react-timer-hook';
 import styled from 'styled-components/native';
 import {useAppSelector} from '../../hooks/reduxHooks';
+import {writeDataBle} from '../../util/bluetooth';
 
 export default function HomePage() {
   const navigation = React.useContext(NavigationContext);
@@ -42,6 +48,18 @@ export default function HomePage() {
 
   const handleSessionNav = () => {
     navigation?.navigate('SessionTimerPage');
+  };
+
+  const handleTransmitStop = () => {
+    console.log(bluetoothState.connectedDevice);
+    if (bluetoothState.connectedDevice) {
+      writeDataBle(
+        bluetoothState.connectedDevice?.id,
+        SERVICE_UUID,
+        DATA_TRANSMIT_TRIGGER_CUUID,
+        'true',
+      );
+    }
   };
 
   return (
@@ -84,6 +102,9 @@ export default function HomePage() {
       )}
       <Content>
         <Text>Home</Text>
+        <Button type="primary" onPress={handleTransmitStop}>
+          STOP TRANSMIT
+        </Button>
       </Content>
     </Container>
   );

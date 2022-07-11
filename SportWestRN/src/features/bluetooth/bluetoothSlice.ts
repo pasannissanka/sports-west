@@ -1,9 +1,12 @@
 import {
+  BLE_SERVICE_UUID,
+  RX_CHARACTERISTIC,
   SERVICE_UUID,
   SESSION_END_T_CUUID,
   SESSION_START_T_CUUID,
   SESSION_STATUS_CUUID,
   SESSION_TRIGGER_CUUID,
+  TX_CHARACTERISTIC,
 } from '@env';
 import {createAsyncThunk, createSlice, PayloadAction} from '@reduxjs/toolkit';
 import {Peripheral, PeripheralInfo} from 'react-native-ble-manager';
@@ -31,7 +34,7 @@ const initialState: {
 
 export const scanDevices = createAsyncThunk(
   'bluetooth/scanDevices',
-  async (deviceServiceUUID: string) => {
+  async (deviceServiceUUID: string | string[]) => {
     return searchDevicesBle(deviceServiceUUID);
   },
 );
@@ -52,6 +55,12 @@ export const retrieveDeviceServices = createAsyncThunk(
     dispatch(
       startSessionNotification({
         peripheralId: peripheralId,
+        peripheralInfo: result,
+      }),
+    );
+    dispatch(
+      startDataNotification({
+        peripheralId,
         peripheralInfo: result,
       }),
     );
@@ -82,6 +91,25 @@ export const startSessionNotification = createAsyncThunk(
         data.peripheralId,
         SERVICE_UUID,
         SESSION_END_T_CUUID,
+      ),
+    ];
+    return Promise.all(promises);
+  },
+);
+
+export const startDataNotification = createAsyncThunk(
+  'bluetooth/notifications/serial',
+  async (data: {peripheralId: string; peripheralInfo: PeripheralInfo}) => {
+    const promises = [
+      startNotificationBle(
+        data.peripheralId,
+        BLE_SERVICE_UUID,
+        RX_CHARACTERISTIC,
+      ),
+      startNotificationBle(
+        data.peripheralId,
+        BLE_SERVICE_UUID,
+        TX_CHARACTERISTIC,
       ),
     ];
     return Promise.all(promises);

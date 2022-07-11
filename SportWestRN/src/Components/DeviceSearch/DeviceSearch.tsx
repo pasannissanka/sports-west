@@ -11,7 +11,7 @@ import {
   scanDevices,
 } from '../../features/bluetooth/bluetoothSlice';
 import {useAppDispatch, useAppSelector} from '../../hooks/reduxHooks';
-import {SERVICE_UUID} from '@env';
+import {BLE_SERVICE_UUID, SERVICE_UUID} from '@env';
 
 export default function DeviceSearch() {
   const dispatch = useAppDispatch();
@@ -44,7 +44,7 @@ export default function DeviceSearch() {
 
     // scan devices
     if (!bluetoothState.isLoading) {
-      const deviceServiceUUID = SERVICE_UUID;
+      const deviceServiceUUID = [SERVICE_UUID, BLE_SERVICE_UUID];
       dispatch(scanDevices(deviceServiceUUID));
     }
   };

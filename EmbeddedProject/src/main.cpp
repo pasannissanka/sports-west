@@ -7,6 +7,8 @@
 #include "date_time.h"
 #include "sd_card.h"
 
+#include "HardwareESPBLESerial.h"
+
 #define USE_ARDUINO_INTERRUPTS false // Set-up low-level interrupts for most acurate BPM math.
 #include <PulseSensorPlayground.h>   // Includes the PulseSensorPlayground Library.
 
@@ -26,6 +28,10 @@ SoftwareSerial ss(16, 17);
 #define SESSION_START_T_CUUID "f8bed3ea-b942-4655-8034-1bcedaaebbd0"
 #define SESSION_END_T_CUUID "495bc49a-ab9f-4e30-9f26-769d223b89ec"
 
+#define DATA_TRANSMIT_TRIGGER_CUUID "378ef6c9-9ad1-4309-9534-e1dfe44698af"
+
+#define BLE_SERVICE_UUID "6E400001-B5A3-F393-E0A9-E50E24DCCA9E"
+
 #define LOGGING_DELAY 5000
 
 BLEServer *pServer;
@@ -39,6 +45,8 @@ BLECharacteristic *pSessionStatusCharacteristic;
 BLECharacteristic *pSessionIDCharacteristic;
 BLECharacteristic *pSessionStartTimeCharacteristic;
 BLECharacteristic *pSessionEndTimeCharacteristic;
+
+BLECharacteristic *pDataTransmitCharacteristic;
 
 // Define CS pin for the SD card module
 #define SD_CS 5
@@ -68,6 +76,7 @@ void setTime();
 void startRecording();
 void stopRecording();
 void notifyBleSessionCharacteristic(boolean isStopped);
+void triggerTransmission();
 
 void Task1code(void *pvParameters);
 
@@ -106,10 +115,6 @@ public:
   ble_session_callback() {}
   ~ble_session_callback() {}
 
-  void onRead(BLECharacteristic *pCharacteristic)
-  {
-  }
-
   void onWrite(BLECharacteristic *pCharacteristic)
   {
     if (device_status::sessionStatus.isRecording)
@@ -122,6 +127,22 @@ public:
     }
   }
 };
+
+boolean isTransmitting = false;
+
+class ble_dataTransmission_callback : public BLECharacteristicCallbacks
+{
+public:
+  ble_dataTransmission_callback() {}
+  ~ble_dataTransmission_callback() {}
+
+  void onWrite(BLECharacteristic *pCharacteristic)
+  {
+    triggerTransmission();
+  }
+};
+
+HardwareESPBLESerial &BLSerial = HardwareESPBLESerial::getInstance();
 
 void setup()
 {
@@ -189,11 +210,18 @@ void setup()
   pSessionEndTimeCharacteristic = pService->createCharacteristic(SESSION_END_T_CUUID, BLECharacteristic::PROPERTY_READ);
   pSessionEndTimeCharacteristic->setValue("-1");
 
+  pDataTransmitCharacteristic = pService->createCharacteristic(DATA_TRANSMIT_TRIGGER_CUUID, BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
+  pDataTransmitCharacteristic->setCallbacks(new ble_dataTransmission_callback());
+
   // Start the service
   pService->start();
+
+  BLSerial.begin(pServer);
+
   // Start advertising
   BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
   pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->addServiceUUID(BLE_SERVICE_UUID);
   pAdvertising->setScanResponse(true);
   pAdvertising->setMinPreferred(0x06); // functions that help with iPhone connections issue
   pAdvertising->setMinPreferred(0x12);
@@ -237,15 +265,46 @@ void loop()
   buttonREC.read();
   buttonDSL.read();
 
-  setTime();
-
-  if (pulseSensor.sawNewSample())
+  if (isTransmitting == false)
   {
-    // getReadings();
-    if (--samplesUntilReport == (byte)0)
+    setTime();
+    if (pulseSensor.sawNewSample())
     {
-      samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
-      readPulseSensor();
+      // getReadings();
+      if (--samplesUntilReport == (byte)0)
+      {
+        samplesUntilReport = SAMPLES_PER_SERIAL_SAMPLE;
+        readPulseSensor();
+      }
+    }
+  }
+  else
+  {
+    // Do transmitting
+    String filePath = String(DATA_DIR) + "/" + String(device_status::sessionStatus.sessionId) + ".txt";
+    File dataFile = SD.open(filePath.c_str());
+
+    Serial.println(filePath);
+
+    if (dataFile)
+    {
+      while (dataFile.available())
+      {
+        Serial.print("Transmission started : SIZE ");
+        Serial.print(dataFile.size());
+        Serial.print(" POSITION : ");
+        Serial.println(dataFile.position());
+
+        BLSerial.write(dataFile.read());
+      }
+      dataFile.close();
+      isTransmitting = false;
+      pDataTransmitCharacteristic->setValue(String(isTransmitting == true ? "true" : "false").c_str());
+      pDataTransmitCharacteristic->notify();
+    }
+    else
+    {
+      Serial.println("error opening data file");
     }
   }
 }
@@ -313,7 +372,7 @@ void getReadings()
 void logSDCard()
 {
   dataMessage = String(readingID) + "," + String(dateTime->rtc.getDate()) + "," + String(dateTime->rtc.getEpoch()) + "," + String(flat) + "," + String(flon) + "," + String(bpm) + ",\r\n";
-  SD_CARD->append_record(SD, String(sessionId), dataMessage.c_str());
+  SD_CARD->append_record(SD, String(device_status::sessionStatus.sessionId), dataMessage.c_str());
   Serial.print("Written log ");
   Serial.print(dataMessage);
 }
@@ -332,7 +391,7 @@ void startRecording()
   readingID = 0;
   device_status::sessionStatus.sessionId = dateTime->rtc.getLocalEpoch();
   device_status::sessionStatus.isRecording = true;
-  SD_CARD->create_record(SD, String(device_status::sessionStatus.sessionId));
+  SD_CARD->create_record(SD, String(device_status::sessionStatus.sessionId), device_status::deviceConnected);
   device_status::sessionStatus.startTime = dateTime->rtc.getLocalEpoch();
 
   notifyBleSessionCharacteristic(false);
@@ -359,7 +418,7 @@ void notifyBleSessionCharacteristic(boolean isStopped)
 void stopRecording()
 {
   readingID = 0;
-  device_status::sessionStatus.sessionId = -1;
+  // device_status::sessionStatus.sessionId = -1;
   device_status::sessionStatus.startTime = -1;
   device_status::sessionStatus.isRecording = false;
 
@@ -405,4 +464,19 @@ void setTime()
     epoch = epochl;
     dateTime->rtc.setTime(epoch);
   }
+}
+
+void triggerTransmission()
+{
+  if (isTransmitting == true)
+  {
+    isTransmitting = false;
+  }
+  else
+  {
+    isTransmitting = true;
+  }
+  Serial.println(isTransmitting);
+  pDataTransmitCharacteristic->setValue(String(isTransmitting == true ? "true" : "false").c_str());
+  pDataTransmitCharacteristic->notify();
 }

@@ -3,6 +3,9 @@
 
 #include "ble_callback.h"
 
+#define SESSION_FILE "/session.txt"
+#define DATA_DIR "/data"
+
 class sd_card
 {
 private:
@@ -15,7 +18,7 @@ public:
   void init_files(fs::FS &fs);
 
   // create record .txt
-  void create_record(fs::FS &fs, String sId);
+  void create_record(fs::FS &fs, String sId, boolean deviceConnected);
 
   void append_record(fs::FS &fs, String sId, const char *message);
 
