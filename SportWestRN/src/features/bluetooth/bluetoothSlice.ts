@@ -1,5 +1,7 @@
 import {
   BLE_SERVICE_UUID,
+  DATA_TRANSMIT_PROGRESS_CUUID,
+  DATA_TRANSMIT_TRIGGER_CUUID,
   RX_CHARACTERISTIC,
   SERVICE_UUID,
   SESSION_END_T_CUUID,
@@ -110,6 +112,16 @@ export const startDataNotification = createAsyncThunk(
         data.peripheralId,
         BLE_SERVICE_UUID,
         TX_CHARACTERISTIC,
+      ),
+      startNotificationBle(
+        data.peripheralId,
+        SERVICE_UUID,
+        DATA_TRANSMIT_TRIGGER_CUUID,
+      ),
+      startNotificationBle(
+        data.peripheralId,
+        SERVICE_UUID,
+        DATA_TRANSMIT_PROGRESS_CUUID,
       ),
     ];
     return Promise.all(promises);

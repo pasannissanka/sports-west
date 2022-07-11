@@ -1,7 +1,7 @@
 import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import React from 'react';
 import SessionPage from '../Pages/Session/Session.page';
-import NoDevice from './MessageScreen/NoDevice';
+import NoDevice from '../Components/MessageScreen/NoDevice';
 import SessionTimer from './SessionTimer';
 
 const Stack = createNativeStackNavigator();

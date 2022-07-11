@@ -2,7 +2,7 @@ import BottomSheet, {BottomSheetBackdrop} from '@gorhom/bottom-sheet';
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import styled from 'styled-components/native';
 import BaseMessageScreen from './BaseMessage.Screen';
-import DeviceSearch from './../../Components/DeviceSearch/DeviceSearch';
+import DeviceSearch from '../DeviceSearch/DeviceSearch';
 
 export default function NoDevice() {
   const [isBSOpen, setIsBSOpen] = useState(false);

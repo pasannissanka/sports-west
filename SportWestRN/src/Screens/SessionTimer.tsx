@@ -1,17 +1,24 @@
 import {Button} from '@ant-design/react-native';
-import {SERVICE_UUID, SESSION_TRIGGER_CUUID} from '@env';
+import {
+  DATA_TRANSMIT_TRIGGER_CUUID,
+  SERVICE_UUID,
+  SESSION_TRIGGER_CUUID,
+} from '@env';
 import React, {useEffect, useState} from 'react';
 import {useStopwatch} from 'react-timer-hook';
 import styled from 'styled-components/native';
-import {useAppSelector} from '../hooks/reduxHooks';
+import {resetSerialData} from '../features/bleData/bleDataSlice';
+import {useAppDispatch, useAppSelector} from '../hooks/reduxHooks';
 import {writeDataBle} from '../util/bluetooth';
 
 export default function SessionTimer() {
   const [offset, setOffset] = useState<Date>();
+
   const bleDataState = useAppSelector(state => state.bleData);
   const bluetoothState = useAppSelector(state => state.bluetooth);
+  const dispatch = useAppDispatch();
 
-  const {seconds, minutes, hours, start, reset} = useStopwatch({
+  const {seconds, minutes, hours, start, reset, pause} = useStopwatch({
     offsetTimestamp: offset,
   });
 
@@ -31,13 +38,16 @@ export default function SessionTimer() {
 
   const onSessionStop = () => {
     if (bluetoothState.connectedDevice?.id) {
-      writeDataBle(
-        bluetoothState.connectedDevice.id,
-        SERVICE_UUID,
-        SESSION_TRIGGER_CUUID,
-        'start',
+      const {id} = bluetoothState.connectedDevice;
+      dispatch(resetSerialData());
+      writeDataBle(id, SERVICE_UUID, SESSION_TRIGGER_CUUID, 'start').then(
+        () => {
+          reset();
+          pause();
+          // Trigger data transfer
+          writeDataBle(id, SERVICE_UUID, DATA_TRANSMIT_TRIGGER_CUUID, 'true');
+        },
       );
-      reset();
     }
   };
 

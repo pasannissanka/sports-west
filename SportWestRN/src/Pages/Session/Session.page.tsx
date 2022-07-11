@@ -3,7 +3,7 @@ import {NavigationContext} from '@react-navigation/native';
 import React, {useEffect} from 'react';
 import styled from 'styled-components/native';
 import {useAppSelector} from '../../hooks/reduxHooks';
-import BaseMessageScreen from '../../Screens/MessageScreen/BaseMessage.Screen';
+import BaseMessageScreen from '../../Components/MessageScreen/BaseMessage.Screen';
 import {writeDataBle} from '../../util/bluetooth';
 
 export default function SessionPage() {

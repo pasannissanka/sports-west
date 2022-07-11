@@ -15,4 +15,5 @@ declare module '@env' {
   export const TX_CHARACTERISTIC: string;
 
   export const DATA_TRANSMIT_TRIGGER_CUUID: string;
+  export const DATA_TRANSMIT_PROGRESS_CUUID: string;
 }

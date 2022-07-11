@@ -9,11 +9,13 @@ import React, {useEffect, useState} from 'react';
 import {Text} from 'react-native';
 import {useStopwatch} from 'react-timer-hook';
 import styled from 'styled-components/native';
-import {useAppSelector} from '../../hooks/reduxHooks';
+import {resetSerialData} from '../../features/bleData/bleDataSlice';
+import {useAppDispatch, useAppSelector} from '../../hooks/reduxHooks';
 import {writeDataBle} from '../../util/bluetooth';
 
 export default function HomePage() {
   const navigation = React.useContext(NavigationContext);
+  const dispatch = useAppDispatch();
   const bleDataState = useAppSelector(state => state.bleData);
   const [offset, setOffset] = useState<Date>();
 
@@ -51,7 +53,7 @@ export default function HomePage() {
   };
 
   const handleTransmitStop = () => {
-    console.log(bluetoothState.connectedDevice);
+    dispatch(resetSerialData());
     if (bluetoothState.connectedDevice) {
       writeDataBle(
         bluetoothState.connectedDevice?.id,

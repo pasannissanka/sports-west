@@ -8,8 +8,8 @@
  * @format
  */
 
-import Icon from '@ant-design/react-native/lib/icon';
 import {
+  DATA_TRANSMIT_PROGRESS_CUUID,
   RX_CHARACTERISTIC,
   SERVICE_UUID,
   SESSION_END_T_CUUID,
@@ -18,8 +18,8 @@ import {
   SESSION_STATUS_CUUID,
   TIMER_CHARACTERISTIC_UUID,
 } from '@env';
-import {createBottomTabNavigator} from '@react-navigation/bottom-tabs';
 import {NavigationContainer} from '@react-navigation/native';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import React, {useEffect} from 'react';
 import {
   NativeEventEmitter,
@@ -31,6 +31,7 @@ import BleManager, {Peripheral} from 'react-native-ble-manager';
 import {GestureHandlerRootView} from 'react-native-gesture-handler';
 import {
   onSerialData,
+  onSerialProgress,
   onSessionEndTime,
   onSessionId,
   onSessionStartTime,
@@ -44,20 +45,18 @@ import {
   scanDevicesEnd,
 } from './features/bluetooth/bluetoothSlice';
 import {useAppDispatch, useAppSelector} from './hooks/reduxHooks';
-import HomeScreen from './Screens/Home.Screen';
-import SessionScreen from './Screens/Session.Screen';
-import {SettingsScreen} from './Screens/Settings.Screen';
+import ModalScreen from './Screens/Modal.Screen';
+import TabBarScreen from './Screens/TabBar.Screen';
 import {writeDataBle} from './util/bluetooth';
 
 const BleManagerModule = NativeModules.BleManager;
 const bleManagerEmitter = new NativeEventEmitter(BleManagerModule);
 
-const Tab = createBottomTabNavigator();
+const RootStack = createNativeStackNavigator();
 
 const App = () => {
   const dispatch = useAppDispatch();
   const bluetoothState = useAppSelector(state => state.bluetooth);
-  const bleDataState = useAppSelector(state => state.bleData);
   const peripherals = new Map<string, Device>();
 
   // BleManager Listeners
@@ -87,16 +86,13 @@ const App = () => {
       case RX_CHARACTERISTIC.toLowerCase():
         dispatch(onSerialData({value}));
         break;
+      case DATA_TRANSMIT_PROGRESS_CUUID.toLowerCase():
+        dispatch(onSerialProgress({value}));
+        break;
       default:
         break;
     }
   };
-
-  console.log(
-    bleDataState.txSessionData,
-    ' : ',
-    bleDataState.txSessionData.length,
-  );
 
   const handleDiscoverPeripheral = (peripheral: Peripheral) => {
     console.log('Got ble peripheral', peripheral);
@@ -240,42 +236,14 @@ const App = () => {
   return (
     <GestureHandlerRootView style={{flex: 1}}>
       <NavigationContainer>
-        <Tab.Navigator
-          initialRouteName="MainTab"
+        <RootStack.Navigator
+          initialRouteName="Root"
           screenOptions={{
-            tabBarActiveTintColor: '#1677FF',
-            tabBarShowLabel: false,
-            headerTitleAlign: 'center',
-            headerTitle: 'Sports Vest',
+            headerShown: false,
           }}>
-          <Tab.Screen
-            name="Main"
-            component={HomeScreen}
-            options={{
-              tabBarIcon: ({color}) => (
-                <Icon name="home" size="lg" color={color} />
-              ),
-            }}
-          />
-          <Tab.Screen
-            name="SessionTab"
-            component={SessionScreen}
-            options={{
-              tabBarIcon: ({color}) => (
-                <Icon name="play-circle" size="lg" color={color} />
-              ),
-            }}
-          />
-          <Tab.Screen
-            name="SettingTab"
-            component={SettingsScreen}
-            options={{
-              tabBarIcon: ({color}) => (
-                <Icon name="bars" size="lg" color={color} />
-              ),
-            }}
-          />
-        </Tab.Navigator>
+          <RootStack.Screen name="Root" component={TabBarScreen} />
+          <RootStack.Screen name="Modal" component={ModalScreen} />
+        </RootStack.Navigator>
       </NavigationContainer>
     </GestureHandlerRootView>
   );
