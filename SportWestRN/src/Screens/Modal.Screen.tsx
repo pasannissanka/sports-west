@@ -1,16 +1,28 @@
-import {View, Text} from 'react-native';
-import React from 'react';
-import {Button} from '@ant-design/react-native';
+import {Progress} from '@ant-design/react-native';
 import {useNavigation} from '@react-navigation/native';
+import React from 'react';
+import styled from 'styled-components/native';
+import BaseMessageScreen from '../Components/MessageScreen/BaseMessage.Screen';
 
 export default function ModalScreen() {
   const navigation = useNavigation();
   return (
-    <View style={{flex: 1, alignItems: 'center', justifyContent: 'center'}}>
-      <Text style={{fontSize: 30}}>This is a modal!</Text>
-      <Button onPress={() => navigation.goBack()} type="ghost">
-        GoBack
-      </Button>
-    </View>
+    <BaseMessageScreen
+      heading="Uploading Session Data"
+      subHeading="Please wait untill session data synced between devices"
+      actionType="children"
+      action={
+        <ProgressWrapper>
+          <Progress position="normal" percent={20} />
+        </ProgressWrapper>
+      }
+    />
   );
 }
+
+const ProgressWrapper = styled.View`
+  display: flex;
+  height: 4px;
+  flex-direction: row;
+  margin: 0 20%;
+`;

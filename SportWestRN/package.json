@@ -16,6 +16,7 @@
     "@react-navigation/native": "^6.0.10",
     "@react-navigation/native-stack": "^6.6.2",
     "@reduxjs/toolkit": "^1.8.2",
+    "@supabase/supabase-js": "^1.35.4",
     "convert-string": "^0.1.0",
     "react": "17.0.2",
     "react-native": "0.68.2",

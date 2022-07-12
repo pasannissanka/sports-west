@@ -1,9 +1,5 @@
 import {Button, Icon, NoticeBar} from '@ant-design/react-native';
-import {
-  BLE_SERVICE_UUID,
-  DATA_TRANSMIT_TRIGGER_CUUID,
-  SERVICE_UUID,
-} from '@env';
+import {DATA_TRANSMIT_TRIGGER_CUUID, SERVICE_UUID} from '@env';
 import {NavigationContext} from '@react-navigation/native';
 import React, {useEffect, useState} from 'react';
 import {Text} from 'react-native';

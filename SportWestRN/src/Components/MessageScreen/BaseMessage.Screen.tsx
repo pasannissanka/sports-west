@@ -16,9 +16,10 @@ const MessagesWrapper = styled.View`
 
 const ActionWrapper = styled.View`
   flex: 1;
+  display: flex;
   flex-direction: column;
   margin-top: 35%;
-  width: 30%;
+  width: 100%;
 `;
 
 const HeadingText = styled.Text`

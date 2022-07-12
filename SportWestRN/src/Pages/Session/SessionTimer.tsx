@@ -4,16 +4,18 @@ import {
   SERVICE_UUID,
   SESSION_TRIGGER_CUUID,
 } from '@env';
+import {useNavigation} from '@react-navigation/native';
 import React, {useEffect, useState} from 'react';
 import {useStopwatch} from 'react-timer-hook';
 import styled from 'styled-components/native';
-import {resetSerialData} from '../features/bleData/bleDataSlice';
-import {useAppDispatch, useAppSelector} from '../hooks/reduxHooks';
-import {writeDataBle} from '../util/bluetooth';
+import {resetSerialData} from '../../features/bleData/bleDataSlice';
+import {useAppDispatch, useAppSelector} from '../../hooks/reduxHooks';
+import {writeDataBle} from '../../util/bluetooth';
 
 export default function SessionTimer() {
   const [offset, setOffset] = useState<Date>();
 
+  const navigation = useNavigation();
   const bleDataState = useAppSelector(state => state.bleData);
   const bluetoothState = useAppSelector(state => state.bluetooth);
   const dispatch = useAppDispatch();
@@ -46,6 +48,7 @@ export default function SessionTimer() {
           pause();
           // Trigger data transfer
           writeDataBle(id, SERVICE_UUID, DATA_TRANSMIT_TRIGGER_CUUID, 'true');
+          navigation.navigate('Modal');
         },
       );
     }
