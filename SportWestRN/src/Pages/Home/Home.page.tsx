@@ -1,13 +1,11 @@
 import {Button, Icon, NoticeBar} from '@ant-design/react-native';
-import {DATA_TRANSMIT_TRIGGER_CUUID, SERVICE_UUID} from '@env';
 import {NavigationContext} from '@react-navigation/native';
 import React, {useEffect, useState} from 'react';
 import {Text} from 'react-native';
 import {useStopwatch} from 'react-timer-hook';
 import styled from 'styled-components/native';
-import {resetSerialData} from '../../features/bleData/bleDataSlice';
+import {syncSupabase} from '../../features/bleData/bleDataSlice';
 import {useAppDispatch, useAppSelector} from '../../hooks/reduxHooks';
-import {writeDataBle} from '../../util/bluetooth';
 
 export default function HomePage() {
   const navigation = React.useContext(NavigationContext);
@@ -49,15 +47,7 @@ export default function HomePage() {
   };
 
   const handleTransmitStop = () => {
-    dispatch(resetSerialData());
-    if (bluetoothState.connectedDevice) {
-      writeDataBle(
-        bluetoothState.connectedDevice?.id,
-        SERVICE_UUID,
-        DATA_TRANSMIT_TRIGGER_CUUID,
-        'true',
-      );
-    }
+    dispatch(syncSupabase());
   };
 
   return (

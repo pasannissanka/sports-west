@@ -28,7 +28,7 @@ void sd_card::create_record(fs::FS &fs, String sId, boolean deviceConnected)
   append_file(fs, String(SESSION_FILE), sData.c_str());
 
   String dataPath = String(DATA_DIR) + "/" + sId + ".txt";
-  write_file(fs, dataPath, "ID, Data, Time, Lat, Lon, BPM, \r\n");
+  write_file(fs, dataPath, "record_id,epoch,lat,lon,bpm\r\n");
 }
 
 void sd_card::append_record(fs::FS &fs, String sId, const char *message)

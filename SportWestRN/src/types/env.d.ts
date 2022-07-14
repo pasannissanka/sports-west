@@ -16,4 +16,7 @@ declare module '@env' {
 
   export const DATA_TRANSMIT_TRIGGER_CUUID: string;
   export const DATA_TRANSMIT_PROGRESS_CUUID: string;
+
+  export const SUPABASE_URL: string;
+  export const SUPABASE_ANON_KEY: string;
 }

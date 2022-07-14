@@ -12,8 +12,7 @@
 #define USE_ARDUINO_INTERRUPTS false // Set-up low-level interrupts for most acurate BPM math.
 #include <PulseSensorPlayground.h>   // Includes the PulseSensorPlayground Library.
 
-// Instantiate classes for communicating with the NEO-6M GPS module
-TinyGPS gps;
+TinyGPS gps; // Instantiate classes for communicating with the NEO-6M GPS module
 SoftwareSerial ss(16, 17);
 
 // See the following for generating UUIDs:
@@ -38,20 +37,18 @@ SoftwareSerial ss(16, 17);
 BLEServer *pServer;
 BLEService *pService;
 
-// Ble Characteristics
-BLECharacteristic *pTimerCharacteristic;
-// Session Characteristics
-BLECharacteristic *pSessionTriggerCharacteristic;
+BLECharacteristic *pTimerCharacteristic; // Ble Characteristics
+
+BLECharacteristic *pSessionTriggerCharacteristic; // Session Characteristics
 BLECharacteristic *pSessionStatusCharacteristic;
 BLECharacteristic *pSessionIDCharacteristic;
 BLECharacteristic *pSessionStartTimeCharacteristic;
 BLECharacteristic *pSessionEndTimeCharacteristic;
 
-BLECharacteristic *pDataTransmitCharacteristic;
+BLECharacteristic *pDataTransmitCharacteristic; // Data Transmit Characteristics
 BLECharacteristic *pDataTransmitProgressCharacteristic;
 
-// Define CS pin for the SD card module
-#define SD_CS 5
+#define SD_CS 5 // Define CS pin for the SD card module
 
 const gpio_num_t buttonPin_DSL = GPIO_NUM_13; // number of the pushbutton pin
 const int buttonPin_REC = GPIO_NUM_12;        // number of the pushbutton pin
@@ -61,11 +58,11 @@ EasyButton buttonREC(buttonPin_REC, 50, false, false);
 EasyButton buttonDSL(buttonPin_DSL, 50, false, false);
 
 // Pulse sensor
-const int PULSE_INPUT = GPIO_NUM_36;
-const int PULSE_BLINK = GPIO_NUM_2; // Pin 13 is the on-board LED
-const int PULSE_THRESHOLD = 2000;   // Adjust this number to avoid noise when idle
+const int PULSE_INPUT = GPIO_NUM_36; // PulseSensor input
+const int PULSE_BLINK = GPIO_NUM_2;  // Pin 13 is the on-board LED
+const int PULSE_THRESHOLD = 2000;    // Adjust this number to avoid noise when idle
 
-PulseSensorPlayground pulseSensor; // Creates an instance of the PulseSensorPlayground object called "pulseSensor"
+PulseSensorPlayground pulseSensor; // Creates an instance of the PulseSensorPlayground
 byte samplesUntilReport;
 const byte SAMPLES_PER_SERIAL_SAMPLE = 10;
 
@@ -79,30 +76,24 @@ void startRecording();
 void stopRecording();
 void notifyBleSessionCharacteristic(boolean isStopped);
 void triggerTransmission();
-
 void Task1code(void *pvParameters);
 
 // initialize static variables
-boolean device_status::deviceConnected = false;
+boolean device_status::deviceConnected = false; // Device status
 session_status device_status::sessionStatus;
-
 uint16_t device_status::connId = 0;
 
-// Save reading number on RTC memory
-RTC_DATA_ATTR int readingID = 0;
+RTC_DATA_ATTR int readingID = 0; // Save reading number on RTC memory
 
-// Logging data
-String dataMessage;
+String dataMessage; // Logging data
 long sessionId;
 
-// Variables to save coordinates
-float flat, flon;
+float flat, flon; // Variables to save coordinates
 unsigned long age, sats, hdop;
-int bpm;
+int bpm; // BPM
 
-// ESP32Time rtc;
-ESP32Time date_time::rtc = ESP32Time();
-int offset = 19800;
+ESP32Time date_time::rtc = ESP32Time(); // ESP32Time rtc;
+int offset = 19800;                     // Timezone offset (+05:30 LK)
 date_time *dateTime;
 long epoch;
 
@@ -130,7 +121,7 @@ public:
   }
 };
 
-boolean isTransmitting = false;
+boolean isTransmitting = false; // Transmission status
 int transmissionProgress = 0;
 
 class ble_dataTransmission_callback : public BLECharacteristicCallbacks
@@ -149,17 +140,14 @@ HardwareESPBLESerial &BLSerial = HardwareESPBLESerial::getInstance();
 
 void setup()
 {
-  // Start serial communication for debugging purposes
-  Serial.begin(115200);
+  Serial.begin(115200); // Start serial communication for debugging purposes
 
-  // setup ext wakeup
-  esp_sleep_enable_ext0_wakeup(buttonPin_DSL, HIGH);
+  esp_sleep_enable_ext0_wakeup(buttonPin_DSL, HIGH); // setup ext wakeup
 
-  buttonDSL.begin();
-  buttonREC.begin();
+  buttonDSL.begin(); // Deep Sleep button
+  buttonREC.begin(); // Record button
 
-  // initialize the LED pin as an output
-  pinMode(ledPin_REC, OUTPUT);
+  pinMode(ledPin_REC, OUTPUT); // initialize the LED pin as an output
 
   buttonREC.onPressed(cbRecordBtn);
   buttonDSL.onPressedFor(2000, cbPowerBtn);
@@ -173,54 +161,69 @@ void setup()
   // Double-check the "pulseSensor" object was created and "began" seeing a signal.
   if (pulseSensor.begin())
   {
-    Serial.println("created pulseSensor Object !"); // This prints one time at Arduino power-up,  or on Arduino reset.
+    Serial.println("created pulseSensor Object !");
   }
 
-  // Start communication over software serial with the NEO-6M GPS module
-  ss.begin(9600);
+  ss.begin(9600); // Start communication over software serial with the NEO-6M GPS module
 
-  // Initialize time;
-  dateTime = new date_time(offset);
+  dateTime = new date_time(offset); // Initialize time;
 
-  // Bluetooth init
-  Serial.println("Starting BLE Server!");
-  // Create the BLE Device
-  BLEDevice::init("SMART SPORTS VEST");
-  // Create the BLE Server
-  pServer = BLEDevice::createServer();
-  pServer->setCallbacks(new ble_callback());
-  // Create the BLE Service
-  pService = pServer->createService(SERVICE_UUID);
-  pTimerCharacteristic = pService->createCharacteristic(TIMER_CHARACTERISTIC_UUID, BLECharacteristic::PROPERTY_READ |
-                                                                                       BLECharacteristic::PROPERTY_WRITE);
+  Serial.println("Starting BLE Server!"); // Bluetooth init
+
+  BLEDevice::init("SMART SPORTS VEST"); // Create the BLE Device
+
+  pServer = BLEDevice::createServer();       // Create the BLE Server
+  pServer->setCallbacks(new ble_callback()); // Server callbacks
+
+  pService = pServer->createService(SERVICE_UUID); // Create the BLE Service
+
+  // Create Characteristics
+  pTimerCharacteristic = pService->createCharacteristic(
+      TIMER_CHARACTERISTIC_UUID,
+      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE); // Device time Characteristic
   pTimerCharacteristic->setValue(String(dateTime->rtc.getEpoch()).c_str());
 
-  // Session Characteristics
-  pSessionTriggerCharacteristic = pService->createCharacteristic(SESSION_TRIGGER_CUUID, BLECharacteristic::PROPERTY_READ |
-                                                                                            BLECharacteristic::PROPERTY_WRITE |
-                                                                                            BLECharacteristic::PROPERTY_NOTIFY);
+  pSessionTriggerCharacteristic = pService->createCharacteristic(
+      SESSION_TRIGGER_CUUID,
+      BLECharacteristic::PROPERTY_READ |
+          BLECharacteristic::PROPERTY_WRITE |
+          BLECharacteristic::PROPERTY_NOTIFY); // Session trigger Characteristics
   pSessionTriggerCharacteristic->setCallbacks(new ble_session_callback());
 
-  pSessionStatusCharacteristic = pService->createCharacteristic(SESSION_STATUS_CUUID, BLECharacteristic::PROPERTY_READ);
+  pSessionStatusCharacteristic = pService->createCharacteristic(
+      SESSION_STATUS_CUUID,
+      BLECharacteristic::PROPERTY_READ); // Session status Characteristics
   pSessionStatusCharacteristic->setValue("false");
 
-  pSessionIDCharacteristic = pService->createCharacteristic(SESSION_ID_CUUID, BLECharacteristic::PROPERTY_READ);
+  pSessionIDCharacteristic = pService->createCharacteristic(
+      SESSION_ID_CUUID,
+      BLECharacteristic::PROPERTY_READ); // Session ID Characteristics
   pSessionIDCharacteristic->setValue("-1");
 
-  pSessionStartTimeCharacteristic = pService->createCharacteristic(SESSION_START_T_CUUID, BLECharacteristic::PROPERTY_READ);
+  pSessionStartTimeCharacteristic = pService->createCharacteristic(
+      SESSION_START_T_CUUID,
+      BLECharacteristic::PROPERTY_READ); // Session start time Characteristics
   pSessionStartTimeCharacteristic->setValue("-1");
 
-  pSessionEndTimeCharacteristic = pService->createCharacteristic(SESSION_END_T_CUUID, BLECharacteristic::PROPERTY_READ);
+  pSessionEndTimeCharacteristic = pService->createCharacteristic(
+      SESSION_END_T_CUUID,
+      BLECharacteristic::PROPERTY_READ); // Session end time Characteristics
   pSessionEndTimeCharacteristic->setValue("-1");
 
-  pDataTransmitCharacteristic = pService->createCharacteristic(DATA_TRANSMIT_TRIGGER_CUUID, BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_NOTIFY);
+  // Data transmit Characteristics
+  pDataTransmitCharacteristic = pService->createCharacteristic(
+      DATA_TRANSMIT_TRIGGER_CUUID,
+      BLECharacteristic::PROPERTY_WRITE |
+          BLECharacteristic::PROPERTY_NOTIFY); // Data transmit status Characteristics
   pDataTransmitCharacteristic->setCallbacks(new ble_dataTransmission_callback());
 
-  pDataTransmitProgressCharacteristic = pService->createCharacteristic(DATA_TRANSMIT_PROGRESS_CUUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+  pDataTransmitProgressCharacteristic = pService->createCharacteristic(
+      DATA_TRANSMIT_PROGRESS_CUUID,
+      BLECharacteristic::PROPERTY_READ |
+          BLECharacteristic::PROPERTY_NOTIFY); // Data transmit progress Characteristics
   pDataTransmitProgressCharacteristic->setValue(transmissionProgress);
 
-  // Start the service
-  pService->start();
+  pService->start(); // Start the service
 
   BLSerial.begin(pServer);
 
@@ -266,6 +269,7 @@ void setup()
   Serial.println("Ready");
 }
 
+// loop
 void loop()
 {
   buttonREC.read();
@@ -299,6 +303,7 @@ void loop()
       {
         int size = dataFile.size();
         BLSerial.write(dataFile.read());
+        // Serial.write(dataFile.read());
 
         int position = dataFile.position();
         int progress = ceil(position / size * 100);
@@ -308,18 +313,17 @@ void loop()
 
           if (millis() - start > 5000)
           {
-            pDataTransmitProgressCharacteristic->setValue(transmissionProgress);
-            pDataTransmitProgressCharacteristic->notify();
+            Serial.print("Progress : ");
+            Serial.println(transmissionProgress);
           }
-
-          Serial.print("Progress : ");
-          Serial.println(transmissionProgress);
         }
       }
       dataFile.close();
       isTransmitting = false;
       pDataTransmitCharacteristic->setValue(String(isTransmitting == true ? "true" : "false").c_str());
       pDataTransmitCharacteristic->notify();
+      pDataTransmitProgressCharacteristic->setValue(transmissionProgress);
+      pDataTransmitProgressCharacteristic->notify();
     }
     else
     {
@@ -328,6 +332,7 @@ void loop()
   }
 }
 
+// Data logging task on core 0
 void Task1code(void *pvParameters)
 {
   Serial.print("Task1 running on core ");
@@ -390,7 +395,7 @@ void getReadings()
 // Write the sensor readings on the SD card
 void logSDCard()
 {
-  dataMessage = String(readingID) + "," + String(dateTime->rtc.getDate()) + "," + String(dateTime->rtc.getEpoch()) + "," + String(flat) + "," + String(flon) + "," + String(bpm) + ",\r\n";
+  dataMessage = String(readingID) + "," + String(dateTime->rtc.getLocalEpoch()) + "," + String(flat) + "," + String(flon) + "," + String(bpm) + "\r\n";
   SD_CARD->append_record(SD, String(device_status::sessionStatus.sessionId), dataMessage.c_str());
   Serial.print("Written log ");
   Serial.print(dataMessage);

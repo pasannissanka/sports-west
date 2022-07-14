@@ -10,6 +10,7 @@
 
 import {
   DATA_TRANSMIT_PROGRESS_CUUID,
+  DATA_TRANSMIT_TRIGGER_CUUID,
   RX_CHARACTERISTIC,
   SERVICE_UUID,
   SESSION_END_T_CUUID,
@@ -86,7 +87,7 @@ const App = () => {
       case RX_CHARACTERISTIC.toLowerCase():
         dispatch(onSerialData({value}));
         break;
-      case DATA_TRANSMIT_PROGRESS_CUUID.toLowerCase():
+      case DATA_TRANSMIT_TRIGGER_CUUID.toLowerCase():
         dispatch(onSerialProgress({value}));
         break;
       default:
